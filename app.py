@@ -7,47 +7,47 @@ from analises import calcular_analise_completa
 st.set_page_config(page_title="Dashboard Pro Analytics", layout="wide")
 
 st.title("📊 Painel de Análise Estatística Pré-Jogo")
-st.markdown("Filtro Ativo: **Apenas confrontos futuros**")
+st.markdown("Filtro Ativo: **Apenas confrontos futuros** | Conexão Direta por Banco de Dados")
+
+# --- DICIONÁRIO DE CONEXÕES DIRETAS DA ESPN ---
+MAPA_LIGAS_ESPN = {
+    "🏆 Copa do Mundo FIFA": "fifa.world",
+    "🏆 Copa Libertadores": "conmebol.libertadores",
+    "🌍 Copa Sul-Americana": "conmebol.sudamericana",
+    "🇧🇷 Brasileirão Série A": "bra.1",
+    "🇧🇷 Brasileirão Série B": "bra.2",
+    "🇧🇷 Copa do Brasil": "bra.copa_do_brasil",
+    "🇸🇦 Liga Saudita (Arábia Saudita)": "sau.1",
+    "🇪🇸 Campeonato Espanhol (LaLiga)": "esp.1",
+    "🇮🇹 Campeonato Italiano (Serie A)": "ita.1",
+    "🇩🇪 Campeonato Alemão (Bundesliga)": "ger.1",
+    "🇫🇷 Campeonato Francês (Ligue 1)": "fra.1",
+    "🇵🇹 Campeonato Português (Liga Portugal)": "por.1",
+    "🇦🇷 Campeonato Argentino": "arg.1",
+    "🇳🇴 Campeonato Norueguês (Eliteserien)": "nor.1",
+    "⚽ Outros Confrontos": "all"
+}
 
 # --- FILTROS DE SELEÇÃO LATERAL ---
 st.sidebar.header("🔍 Configurações")
 data_selecionada = st.sidebar.date_input("Escolha a Data da Rodada", datetime.today())
 data_formatada = data_selecionada.strftime('%Y-%m-%d')
 
-CAMPEONATOS_FIXOS = [
-    "🏆 Copa do Mundo FIFA",
-    "🏆 Copa Libertadores",
-    "🌍 Copa Sul-Americana",
-    "🇧🇷 Brasileirão Série A",
-    "🇧🇷 Brasileirão Série B",
-    "🇧🇷 Copa do Brasil",
-    "🇸🇦 Liga Saudita (Arábia Saudita)",
-    "🇪🇸 Campeonato Espanhol (LaLiga)",
-    "🇮🇹 Campeonato Italiano (Serie A)",
-    "🇩🇪 Campeonato Alemão (Bundesliga)",
-    "🇫🇷 Campeonato Francês (Ligue 1)",
-    "🇵🇹 Campeonato Português (Liga Portugal)",
-    "🇦🇷 Campeonato Argentino",
-    "🇳🇴 Campeonato Norueguês (Eliteserien)",
-    "⚽ Outros Confrontos"
-]
-
-# 🧱 PASSO 1: Escolher o Campeonato
+# 🧱 PASSO 1: Escolher o Campeonato (Sempre visível na tela)
 st.subheader("🏆 Passo 1: Selecione o Campeonato")
-campeonato_selecionado = st.selectbox("Escolha a liga que deseja analisar:", CAMPEONATOS_FIXOS)
+campeonato_selecionado = st.selectbox("Escolha a liga que deseja analisar:", list(MAPA_LIGAS_ESPN.keys()))
 
-# Coleta os dados do dia de forma segura
-lista_jogos = buscar_jogos_do_dia(data_formatada)
+# Captura o link interno correto da API com base na escolha fixa da tela
+slug_escolhido = MAPA_LIGAS_ESPN[campeonato_selecionado]
 
-df_filtrado_liga = pd.DataFrame()
-if lista_jogos:
-    df_jogos = pd.DataFrame(lista_jogos)
-    df_filtrado_liga = df_jogos[df_jogos['campeonato'] == campeonato_selecionado]
+# Executa a busca focada diretamente no banco daquela liga específica
+lista_jogos = buscar_jogos_do_dia(data_formatada, slug_escolhido)
 
 st.divider()
 
-# Exibição baseada no filtro
-if not df_filtrado_liga.empty:
+# Validação e Fluxo do Passo 2
+if lista_jogos:
+    df_filtrado_liga = pd.DataFrame(lista_jogos)
     
     # 🧱 PASSO 2: Escolher o Time
     st.subheader("⚽ Passo 2: Selecione o Time")
