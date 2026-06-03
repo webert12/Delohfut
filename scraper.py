@@ -1,8 +1,40 @@
 import requests
 from datetime import datetime, timedelta
 
+# Dicionário de mapeamento oficial para organizar e traduzir as ligas globais
+MAPA_CAMPEONATOS = {
+    "copa libertadores": "🏆 Copa Libertadores",
+    "copa sudamericana": "🌍 Copa Sul-Americana",
+    "brazilian série a": "🇧🇷 Brasileirão Série A",
+    "brazilian serie a": "🇧🇷 Brasileirão Série A",
+    "brazilian série b": "🇧🇷 Brasileirão Série B",
+    "brazilian serie b": "🇧🇷 Brasileirão Série B",
+    "brazilian challenger sn": "🇧🇷 Brasileirão Série B",
+    "brazilian copa do brasil": "🇧🇷 Copa do Brasil",
+    "saudi professional league": "🇸🇦 Liga Saudita (Arabia Saudita)",
+    "spanish laliga": "🇪🇸 Campeonato Espanhol (LaLiga)",
+    "spanish primera división": "🇪🇸 Campeonato Espanhol (LaLiga)",
+    "italian serie a": "🇮🇹 Campeonato Italiano (Serie A)",
+    "german bundesliga": "🇩🇪 Campeonato Alemão (Bundesliga)",
+    "german 2. bundesliga": "🇩🇪 Alemanha - 2. Bundesliga",
+    "german 3. liga": "🇩🇪 Alemanha - 3. Liga",
+    "french ligue 1": "🇫🇷 Campeonato Francês (Ligue 1)",
+    "french ligue 2": "🇫🇷 Campeonato Francês (Ligue 2)",
+    "portuguese primeira liga": "🇵🇹 Campeonato Português (Liga Portugal)",
+    "argentine liga profesional de fútbol": "🇦🇷 Campeonato Argentino",
+    "argentine primera división": "🇦🇷 Campeonato Argentino",
+    "norwegian eliteserien": "🇳🇴 Campeonato Norueguês (Eliteserien)",
+    "norwegian 1. divisjon": "🇳🇴 Campeonato Norueguês (1. Divisão)",
+    "english premier league": "🏴󠁧󠁢󠁥󠁮󠁧󠁿 Premier League (Inglaterra)",
+    "english league championship": "🏴󠁧󠁢󠁥󠁮󠁧󠁿 Championship (Inglaterra 2ª)",
+    "uefa champions league": "🇪🇺 UEFA Champions League",
+    "uefa europa league": "🇪🇺 UEFA Europa League",
+    "mexican liga mx": "🇲🇽 Liga MX (México)",
+    "dutch eredivisie": "🇳🇱 Campeonato Holandês (Eredivisie)",
+    "american mls": "🇺🇸 MLS (Estados Unidos)"
+}
+
 def buscar_jogos_do_dia(data_str=None):
-    # Converte o formato do calendário (YYYY-MM-DD) para o padrão da API (YYYYMMDD)
     if data_str:
         data_espn = data_str.replace("-", "")
     else:
@@ -23,14 +55,16 @@ def buscar_jogos_do_dia(data_str=None):
             id_jogo = evento.get('id')
             competicao = evento.get('competitions', [{}])[0]
             
-            # 🚫 FILTRO DE SEGURANÇA: Descarta jogos ao vivo ('in') ou finalizados ('post')
+            # FILTRO PRÉ-JOGO: Garante apenas partidas que NÃO começaram
             status_obj = competicao.get('status', {})
             estado_jogo = status_obj.get('type', {}).get('state', 'pre') 
-            
             if estado_jogo != 'pre':
-                continue # Ignora completamente e pula para o próximo
+                continue
                 
-            campeonato_nome = evento.get('leagues', [{}])[0].get('name', 'Outros Confrontos')
+            campeonato_original = evento.get('leagues', [{}])[0].get('name', 'Outros Confrontos')
+            
+            # Aplica a tradução amigável se a liga estiver mapeada no nosso dicionário
+            campeonato_nome = MAPA_CAMPEONATOS.get(campeonato_original.lower(), campeonato_original)
             
             competitors = competicao.get('competitors', [])
             time_casa = "Não definido"
@@ -42,7 +76,7 @@ def buscar_jogos_do_dia(data_str=None):
                 elif team_data.get('homeAway') == 'away':
                     time_fora = team_data.get('team', {}).get('name')
             
-            # Trata o fuso horário UTC da API para o Horário de Brasília (UTC-3)
+            # Fuso Horário UTC para Brasília (UTC-3)
             data_utc_str = competicao.get('date', '') 
             horario_brasilia = "--:--"
             if data_utc_str:
@@ -64,4 +98,4 @@ def buscar_jogos_do_dia(data_str=None):
         return jogos_formatados
         
     except Exception as e:
-        raise Exception(f"Erro ao conectar com a base de dados esportiva: {str(e)}")
+        raise Exception(f"Erro ao conectar com a base de dados: {str(e)}")
