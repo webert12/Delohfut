@@ -2,103 +2,120 @@ import streamlit as st
 import pandas as pd
 from datetime import datetime
 from scraper import buscar_jogos_do_dia
+from analises import calcular_analise_completa
 
-# Configuração da página do Streamlit
-st.set_page_config(page_title="Analytics Pro - Esportes", layout="wide")
+st.set_page_config(page_title="Dashboard Pro Analytics", layout="wide")
 
-st.title("📊 Dashboard de Análise Esportiva Profissional")
-st.markdown("Fontes: *SofaScore & Flashscore*")
+st.title("📊 Dashboard de Análise Esportiva Avançada")
+st.markdown("Fontes de Coleta Integrada: *SofaScore & Flashscore*")
 
-# --- BARRA LATERAL DE FILTROS ---
-st.sidebar.header("Filtros de Seleção")
+# --- FILTROS DE SELEÇÃO LATERAL ---
+st.sidebar.header("🔍 Filtros de Busca")
 
-# 1. Filtro de Data
-data_selecionada = st.sidebar.date_input("Escolha a Data", datetime.today())
+data_selecionada = st.sidebar.date_input("1. Escolha a Data", datetime.today())
 data_formatada = data_selecionada.strftime('%Y-%m-%d')
 
-# Buscar os dados usando o nosso scraper embrulhado em um bloco de teste seguro
-try:
-    with st.spinner("Buscando jogos no SofaScore..."):
-        lista_jogos = buscar_jogos_do_dia(data_formatada)
-except Exception as erro_scraper:
-    st.error(f"Erro ao executar o scraper.py: {erro_scraper}")
-    lista_jogos = []
+with st.spinner("Buscando partidas em tempo real..."):
+    lista_jogos = buscar_jogos_do_dia(data_formatada)
 
-# Validando se a lista veio preenchida e correta
-if isinstance(lista_jogos, list) and len(lista_jogos) > 0:
-    try:
-        # Converter a lista de jogos para um DataFrame do Pandas (Tabela)
-        df_jogos = pd.DataFrame(lista_jogos)
+if lista_jogos:
+    df_jogos = pd.DataFrame(lista_jogos)
+    
+    # Filtro Dinâmico de Campeonatos
+    todos_campeonatos = sorted(df_jogos['campeonato'].unique())
+    campeonatos_selecionados = st.sidebar.multiselect("2. Selecione os Campeonatos", todos_campeonatos)
+    
+    if campeonatos_selecionados:
+        df_jogos = df_jogos[df_jogos['campeonato'].isin(campeonatos_selecionados)]
+
+    # --- ÁREA PRINCIPAL ---
+    st.subheader(f"⚽ Partidas Cadastradas ({len(df_jogos)})")
+    
+    df_exibicao = df_jogos.copy()
+    df_exibicao.rename(columns={'status': 'Hora (Brasília)'}, inplace=True)
+    st.dataframe(
+        df_exibicao[['pais', 'campeonato', 'time_casa', 'time_fora', 'Hora (Brasília)']], 
+        use_container_width=True, hide_index=True
+    )
+    
+    st.divider()
+    
+    # Escolha do Jogo para Analisar
+    df_jogos['partida'] = df_jogos['time_casa'] + " x " + df_jogos['time_fora']
+    jogo_selecionado = st.selectbox("🎯 Selecione a partida que deseja dissecar:", df_jogos['partida'].unique())
+    
+    if jogo_selecionado:
+        linha_jogo = df_jogos[df_jogos['partida'] == jogo_selecionado].iloc[0]
+        id_jogo = linha_jogo['id']
+        t_casa = linha_jogo['time_casa']
+        t_fora = linha_jogo['time_fora']
         
-        # 2. Filtro de Campeonato (Dinâmico baseado nos jogos do dia)
-        lista_campeonatos = sorted(df_jogos['campeonato'].unique())
-        campeonatos_selecionados = st.sidebar.multiselect("Filtrar por Campeonato", lista_campeonatos)
+        # Puxar métricas calculadas dos últimos 5 jogos
+        res = calcular_analise_completa(id_jogo, t_casa, t_fora)
         
-        # Aplicar filtro de campeonato se houver algum selecionado
-        if campeonatos_selecionados:
-            df_jogos = df_jogos[df_jogos['campeonato'].isin(campeonatos_selecionados)]
+        st.subheader(f"🛠️ O que você deseja analisar em {jogo_selecionado}?")
+        
+        # --- PAINEL DE CHECKS DE MERCADOS ---
+        analisar_tudo = st.checkbox("🔥 ANALISAR TUDO DE UMA SÓ VEZ", value=False)
+        
+        col_m1, col_m2, col_m3, col_m4 = st.columns(4)
+        with col_m1:
+            quero_cartoes = st.checkbox("🟨 Cartões e Juiz", value=False if not analisar_tudo else True)
+        with col_m2:
+            quero_escanteios = st.checkbox("📐 Escanteios", value=False if not analisar_tudo else True)
+        with col_m3:
+            quero_gols = st.checkbox("⚽ Gols (HT / FT)", value=False if not analisar_tudo else True)
+        with col_m4:
+            quero_probabilidades = st.checkbox("📈 Probabilidades e Favoritismo", value=False if not analisar_tudo else True)
             
-        # --- ÁREA PRINCIPAL ---
-        st.subheader(f"⚽ Jogos Encontrados ({len(df_jogos)})")
-        
-        # Criamos uma cópia para renomear a coluna para 'Hora (Brasília)' de forma limpa na tela
-        df_exibicao = df_jogos.copy()
-        df_exibicao.rename(columns={'status': 'Hora (Brasília)'}, inplace=True)
-        
-        # Exibir a tabela formatada na tela com o novo horário de Brasília
-        st.dataframe(
-            df_exibicao[['pais', 'campeonato', 'time_casa', 'time_fora', 'Hora (Brasília)']], 
-            use_container_width=True,
-            hide_index=True
-        )
-        
-        # Próximo passo do sistema (Seleção de um jogo específico para análise)
         st.divider()
-        st.subheader("🔍 Análise Detalhada da Partida")
         
-        # Criar uma lista de nomes de jogos para o usuário escolher qual analisar
-        df_jogos['partida'] = df_jogos['time_casa'] + " x " + df_jogos['time_fora']
-        jogo_para_analisar = st.selectbox("Selecione um jogo para abrir as estatísticas de Gols, Cartões e Árbitro:", df_jogos['partida'].unique())
+        # --- EXIBIÇÃO DINÂMICA DAS ANÁLISES SOLICITADAS ---
+        
+        if analisar_tudo or quero_probabilidades:
+            st.markdown("### 📈 Probabilidades e Previsões do Confronto")
+            st.info(f"**Distribuição Probabilística:** {res['probabilidade_vitoria']}")
+            c1, c2, c3 = st.columns(3)
+            c1.metric("⭐ Maior Chance de Ganhar", res['time_favorito'])
+            c2.metric("🎯 Time que Marca Mais Gols", res['time_ataque_forte'])
+            c3.metric("⚠️ Sofre Mais Cartões", res['time_mais_faltoso'])
+            st.write("---")
 
-        # --- CONECTANDO O ARQUIVO DE ANÁLISES ---
-        if jogo_para_analisar:
-            # Descobrir o ID do jogo selecionado
-            id_do_jogo = df_jogos[df_jogos['partida'] == jogo_para_analisar]['id'].values[0]
-            
-            st.subheader(f"📊 Relatório Avançado: {jogo_para_analisar}")
-            
-            # Importando as funções do analises.py dinamicamente
-            from analises import puxar_detalhes_do_jogo, calcular_probabilidade_cartoes, analisar_gols_e_escanteios
-            
-            detalhes = puxar_detalhes_do_jogo(id_do_jogo)
-            
-            col1, col2, col3 = st.columns(3)
-            
-            if detalhes and detalhes.get('arbitro', {}).get('nome') != 'Não informado':
-                arbitro = detalhes['arbitro']
-                stats_arbitro = calcular_probabilidade_cartoes(arbitro['id'])
+        if analisar_tudo or quero_gols:
+            st.markdown("### ⚽ Análise de Gols (Últimos 5 Jogos)")
+            g1, g2 = st.columns(2)
+            with g1:
+                st.write(f"**{t_casa} (Casa):**")
+                st.write(f"📊 Histórico Recente de Gols: {res['ultimos_5_gols_casa']}")
+                st.write(f"🔹 Média de Gols Marcados: **{res['media_gols_casa']}**")
+                st.write(f"🔸 Média de Gols Sofridos: **{res['media_sofridos_casa']}**")
+            with g2:
+                st.write(f"**{t_fora} (Fora):**")
+                st.write(f"📊 Histórico Recente de Gols: {res['ultimos_5_gols_fora']}")
+                st.write(f"🔹 Média de Gols Marcados: **{res['media_gols_fora']}**")
+                st.write(f"🔸 Média de Gols Sofridos: **{res['media_sofridos_fora']}**")
                 
-                with col1:
-                    st.metric(label="👨‍⚖️ Árbitro Escalado", value=arbitro['nome'])
-                    st.write(f"**Tendência:** {stats_arbitro.get('tendencia', 'N/A')}")
-                    st.write(f"📊 Média de Amarelos/Jogo: **{stats_arbitro.get('media_amarelos', 0)}**")
-            else:
-                with col1:
-                    st.info("Árbitro ainda não escalado ou não encontrado para esta partida.")
-                    
-            # Bloco de Gols e Escanteios
-            stats_jogo = analisar_gols_e_escanteios(id_do_jogo)
-            if stats_jogo:
-                with col2:
-                    st.metric(label="⚽ Probabilidade Gol no 1º Tempo (HT)", value=stats_jogo.get('probabilidade_gol_ht', '0%'))
-                    st.caption("Baseado nos últimos 10 jogos de ambas as equipes.")
-                    
-                with col3:
-                    st.metric(label="📐 Média Est. de Escanteios", value=f"{stats_jogo.get('media_escanteios_jogo', 0)} Cantos")
-                    st.caption("Tendência da linha de Over/Under para o mercado.")
-                    
-    except Exception as erro_interface:
-        st.error(f"Erro de processamento na interface: {erro_interface}")
+            st.success(f"⏱️ Probabilidade de Gol no 1º Tempo (HT): **{res['prob_gol_ht']}** | No Jogo Todo (FT): **{res['prob_gol_ft']}**")
+            st.write("---")
+            
+        if analisar_tudo or quero_cartoes:
+            st.markdown("### 🟨 Relatório de Disciplina e Arbitragem")
+            ca1, ca2 = st.columns(2)
+            with ca1:
+                st.metric("👨‍⚖️ Árbitro da Partida", res['juiz_nome'])
+                st.write(f"📋 Média Geral do Juiz: **{res['juiz_media_cartoes']} cartões por jogo**")
+            with ca2:
+                st.write(f"🔹 Média de cartões recebidos pelo **{t_casa}**: {res['media_cartoes_casa']}")
+                st.write(f"🔸 Média de cartões recebidos pelo **{t_fora}**: {res['media_cartoes_fora']}")
+            st.write("---")
+            
+        if analisar_tudo or quero_escanteios:
+            st.markdown("### 📐 Análise de Escanteios (Cantos)")
+            st.metric("📐 Linha Média Estimada de Cantos", f"{res['media_escanteios']} Escanteios")
+            st.caption("Métrica consolidada somando as propensões ofensivas e c cessões defensivas das duas equipes nos últimos confrontos.")
+            st.write("---")
+            
+        if not (analisar_tudo or quero_cartoes or quero_escanteios or quero_gols or quero_probabilidades):
+            st.warning("Selecione pelo menos um mercado acima ou marque 'ANALISAR TUDO' para visualizar o relatório.")
 else:
-    st.warning("Nenhum jogo encontrado para a data selecionada ou limite de requisições atingido.")
-    st.info("Dica técnica: Se o arquivo scraper.py foi modificado recentemente, certifique-se de dar um 'Reboot app' nas configurações do Streamlit Cloud para aplicar as alterações.")
+    st.warning("Nenhum jogo localizado. Certifique-se de realizar o Reboot App para limpar os caches do servidor.")
