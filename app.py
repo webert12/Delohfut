@@ -33,19 +33,17 @@ st.sidebar.header("🔍 Configurações")
 data_selecionada = st.sidebar.date_input("Escolha a Data da Rodada", datetime.today())
 data_formatada = data_selecionada.strftime('%Y-%m-%d')
 
-# 🧱 PASSO 1: Escolher o Campeonato (Sempre visível na tela)
+# 🧱 PASSO 1: Escolher o Campeonato
 st.subheader("🏆 Passo 1: Selecione o Campeonato")
 campeonato_selecionado = st.selectbox("Escolha a liga que deseja analisar:", list(MAPA_LIGAS_ESPN.keys()))
 
-# Captura o link interno correto da API com base na escolha fixa da tela
 slug_escolhido = MAPA_LIGAS_ESPN[campeonato_selecionado]
 
-# Executa a busca focada diretamente no banco daquela liga específica
-lista_jogos = buscar_jogos_do_dia(data_formatada, slug_escolhido)
+# LINHA 44 CORRIGIDA: Passando parâmetros nomeados de forma explícita e segura
+lista_jogos = buscar_jogos_do_dia(data_str=data_formatada, liga_slug=slug_escolhido)
 
 st.divider()
 
-# Validação e Fluxo do Passo 2
 if lista_jogos:
     df_filtrado_liga = pd.DataFrame(lista_jogos)
     
