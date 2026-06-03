@@ -41,9 +41,13 @@ if isinstance(lista_jogos, list) and len(lista_jogos) > 0:
         # --- ÁREA PRINCIPAL ---
         st.subheader(f"⚽ Jogos Encontrados ({len(df_jogos)})")
         
-        # Exibir a tabela formatada na tela
+        # Criamos uma cópia para renomear a coluna para 'Hora (Brasília)' de forma limpa na tela
+        df_exibicao = df_jogos.copy()
+        df_exibicao.rename(columns={'status': 'Hora (Brasília)'}, inplace=True)
+        
+        # Exibir a tabela formatada na tela com o novo horário de Brasília
         st.dataframe(
-            df_jogos[['pais', 'campeonato', 'time_casa', 'time_fora', 'status']], 
+            df_exibicao[['pais', 'campeonato', 'time_casa', 'time_fora', 'Hora (Brasília)']], 
             use_container_width=True,
             hide_index=True
         )
