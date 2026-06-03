@@ -7,88 +7,86 @@ from analises import calcular_analise_completa
 st.set_page_config(page_title="Dashboard Pro Analytics", layout="wide")
 
 st.title("📊 Painel de Análise Estatística Pré-Jogo")
-st.markdown("Filtro Ativo: **Apenas confrontos futuros** | Coleta de Dados Expandida Mundial")
+st.markdown("Filtro Ativo: **Apenas confrontos futuros** | Seleção Encadeada de Ligas")
 
 # --- FILTROS DE SELEÇÃO LATERAL ---
-st.sidebar.header("🔍 Configurações do Filtro")
-
-# 1. Calendário Inteligente
-data_selecionada = st.sidebar.date_input("1. Escolha a Data da Rodada", datetime.today())
+st.sidebar.header("🔍 Configurações")
+data_selecionada = st.sidebar.date_input("Escolha a Data da Rodada", datetime.today())
 data_formatada = data_selecionada.strftime('%Y-%m-%d')
 
 lista_jogos = []
 try:
-    with st.spinner("Varrendo banco de dados mundial..."):
+    with st.spinner("Buscando dados da rodada mundial..."):
         lista_jogos = buscar_jogos_do_dia(data_formatada)
 except Exception as e:
-    st.sidebar.error(f"⚠️ {str(e)}")
+    st.error(f"⚠️ {str(e)}")
 
 if lista_jogos:
     df_jogos = pd.DataFrame(lista_jogos)
     
-    # 2. Dropdown de Campeonatos (Lista automaticamente todas as ligas reais traduzidas que jogam no dia)
+    # 🧱 PASSO 1: Escolher o Campeonato Primeiro
+    st.subheader("🏆 Passo 1: Selecione o Campeonato")
     todos_campeonatos = sorted(df_jogos['campeonato'].unique())
-    campeonato_selecionado = st.sidebar.selectbox("2. Escolha o Campeonato", ["Todos os Campeonatos"] + todos_campeonatos)
+    campeonato_selecionado = st.selectbox("Selecione a liga que deseja analisar:", todos_campeonatos, index=0)
     
-    if campeonato_selecionado != "Todos os Campeonatos":
-        df_jogos = df_jogos[df_jogos['campeonato'] == campeonato_selecionado]
-
-    # --- ÁREA PRINCIPAL ---
-    st.subheader(f"📅 Agenda Pré-Jogo Disponível - {data_selecionada.strftime('%d/%m/%Y')}")
-    
-    df_exibicao = df_jogos.copy()
-    df_exibicao.rename(columns={'campeonato': 'Campeonato', 'time_casa': 'Time da Casa', 'time_fora': 'Visitante', 'status': 'Horário de Início (BR)'}, inplace=True)
-    
-    st.dataframe(
-        df_exibicao[['Campeonato', 'Time da Casa', 'Visitante', 'Horário de Início (BR)']], 
-        use_container_width=True, hide_index=True
-    )
+    # Filtrar o DataFrame apenas com o campeonato escolhido
+    df_filtrado_liga = df_jogos[df_jogos['campeonato'] == campeonato_selecionado]
     
     st.divider()
     
-    # 3. Seletor Dinâmico de Confronto
-    df_jogos['partida'] = df_jogos['time_casa'] + " x " + df_jogos['time_fora']
-    jogo_selecionado = st.selectbox("🎯 Escolha o confronto que deseja analisar:", df_jogos['partida'].unique())
+    # 🧱 PASSO 2: Escolher o Time pertencente àquele campeonato
+    st.subheader("⚽ Passo 2: Selecione o Time")
     
-    if jogo_selecionado:
-        linha_jogo = df_jogos[df_jogos['partida'] == jogo_selecionado].iloc[0]
+    # Extrair todos os times únicos que vão jogar nesta liga no dia escolhido
+    times_disponiveis = sorted(list(set(df_filtrado_liga['time_casa'].tolist() + df_filtrado_liga['time_fora'].tolist())))
+    time_selecionado = st.selectbox("Escolha a equipe para focar a análise pré-jogo:", times_disponiveis)
+    
+    # Localizar automaticamente a partida onde este time está envolvido
+    linha_jogo = df_filtrado_liga[(df_filtrado_liga['time_casa'] == time_selecionado) | (df_filtrado_liga['time_fora'] == time_selecionado)].iloc[0]
+    
+    id_jogo = str(linha_jogo['id'])
+    t_casa = str(linha_jogo['time_casa'])
+    t_fora = str(linha_jogo['time_fora'])
+    horario = str(linha_jogo['status'])
+    
+    st.divider()
+    
+    # Display do Card do Confronto Localizado
+    st.success(f"🎯 **Confronto Localizado:** {t_casa} x {t_fora} | 🕒 **Horário:** {horario} (Brasília)")
+    
+    # Executar a análise real do jogo encontrado
+    with st.spinner(f"Processando métricas oficiais de {t_casa} x {t_fora}..."):
+        res = calcular_analise_completa(id_jogo, t_casa, t_fora)
         
-        id_jogo = str(linha_jogo['id'])
-        t_casa = str(linha_jogo['time_casa'])
-        t_fora = str(linha_jogo['time_fora'])
+    st.subheader(f"🛠️ Painel Analítico")
+    
+    analisar_tudo = st.checkbox("🔥 EXIBIR TODOS OS MERCADOS DE ANÁLISE", value=True)
+    
+    col_m1, col_m2, col_m3 = st.columns(3)
+    with col_m1:
+        quero_probabilidades = st.checkbox("📈 Probabilidades / Odds", value=True if analisar_tudo else False)
+    with col_m2:
+        quero_gols = st.checkbox("⚽ Histórico H2H / Gols", value=True if analisar_tudo else False)
+    with col_m3:
+        quero_cartoes = st.checkbox("🟨 Juiz e Escalação", value=True if analisar_tudo else False)
         
-        with st.spinner(f"Coletando histórico real para {jogo_selecionado}..."):
-            res = calcular_analise_completa(id_jogo, t_casa, t_fora)
-        
-        st.subheader(f"🛠️ Métricas de Estudo: {jogo_selecionado}")
-        
-        analisar_tudo = st.checkbox("🔥 EXIBIR TODOS OS MERCADOS DE ANÁLISE", value=True)
-        
-        col_m1, col_m2, col_m3 = st.columns(3)
-        with col_m1:
-            quero_probabilidades = st.checkbox("📈 Probabilidades / Odds", value=True if analisar_tudo else False)
-        with col_m2:
-            quero_gols = st.checkbox("⚽ Histórico H2H / Gols", value=True if analisar_tudo else False)
-        with col_m3:
-            quero_cartoes = st.checkbox("🟨 Juiz e Escalação", value=True if analisar_tudo else False)
-            
-        st.divider()
-        
-        if quero_probabilidades:
-            st.markdown("### 📈 Previsões de Força do Confronto")
-            st.info(f"**Projeção Algorítmica das Ligas:** {res['probabilidade_vitoria']}")
-            st.metric("⭐ Tendência de Favoritismo Técnico", res['time_favorito'])
-            st.write("---")
+    st.divider()
+    
+    if quero_probabilidades:
+        st.markdown("### 📈 Previsões de Força do Confronto")
+        st.info(f"**Projeção Algorítmica das Ligas:** {res['probabilidade_vitoria']}")
+        st.metric("⭐ Tendência de Favoritismo Técnico", res['time_favorito'])
+        st.write("---")
 
-        if quero_gols:
-            st.markdown("### ⚽ Retrospecto de Jogos e Confrontos Reais em Campo")
-            st.markdown(res['tendencia_gols'])
-            st.write("---")
-            
-        if quero_cartoes:
-            st.markdown("### 🟨 Informações sobre a Escala de Arbitragem")
-            st.metric("👨‍⚖️ Árbitro Escalado", res['juiz_nome'])
-            st.markdown(res['tendencia_cartoes'])
-            st.write("---")
+    if quero_gols:
+        st.markdown("### ⚽ Retrospecto de Jogos e Confrontos Reais em Campo")
+        st.markdown(res['tendencia_gols'])
+        st.write("---")
+        
+    if quero_cartoes:
+        st.markdown("### 🟨 Informações sobre a Escala de Arbitragem")
+        st.metric("👨‍⚖️ Árbitro Escalado", res['juiz_nome'])
+        st.markdown(res['tendencia_cartoes'])
+        st.write("---")
 else:
-    st.warning(f"Nenhum jogo futuro agendado para {data_selecionada.strftime('%d/%m/%Y')}. Partidas ao vivo ou encerradas são omitidas automaticamente.")
+    st.warning(f"Nenhum jogo futuro agendado para a data selecionada ({data_selecionada.strftime('%d/%m/%Y')}). Modifique o calendário lateral para buscar novas rodadas.")
