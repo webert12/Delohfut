@@ -1,71 +1,53 @@
 import requests
-from datetime import datetime, timedelta
-import json
-
-def formatar_eventos_sofa(events):
-    jogos_formatados = []
-    for evento in events:
-        timestamp_jogo = evento.get('startTimestamp')
-        horario_brasilia = "--:--"
-        if timestamp_jogo:
-            dt_utc = datetime.utcfromtimestamp(timestamp_jogo)
-            dt_brasilia = dt_utc - timedelta(hours=3)
-            horario_brasilia = dt_brasilia.strftime('%H:%M')
-        
-        jogos_formatados.append({
-            "id": int(evento.get('id')),
-            "campeonato": evento.get('tournament', {}).get('name', 'Outros'),
-            "pais": evento.get('tournament', {}).get('category', {}).get('name', 'Internacional'),
-            "time_casa": evento.get('homeTeam', {}).get('name'),
-            "time_fora": evento.get('awayTeam', {}).get('name'),
-            "status": horario_brasilia
-        })
-    return jogos_formatados
+from datetime import datetime
 
 def buscar_jogos_do_dia(data_str=None):
-    if not data_str:
-        fuso_brasil = datetime.utcnow() - timedelta(hours=3)
-        data_str = fuso_brasil.strftime('%Y-%m-%d')
+    # Converte o formato do Streamlit (YYYY-MM-DD) para o formato da ESPN (YYYYMMDD)
+    if data_str:
+        data_espn = data_str.replace("-", "")
+    else:
+        data_espn = datetime.now().strftime("%Y%m%d")
         
-    url_sofa = f"https://api.sofascore.com/api/v1/sport/football/scheduled-events/{data_str}"
+    url = f"https://site.api.espn.com/apis/site/v2/sports/soccer/all/scoreboard?dates={data_espn}"
     
-    # ROTA 1: Emulação Direta de App Mobile Nativo
-    headers_mobile = {
-        "User-Agent": "SofaScore/Android/24.11.2 (Xiaomi; Android 14)",
-        "X-So-Client": "android",
-        "Accept": "*/*"
-    }
     try:
-        resposta = requests.get(url_sofa, headers=headers_mobile, timeout=5)
-        if resposta.status_code == 200:
-            events = resposta.json().get('events', [])
-            if events:
-                return formatar_eventos_sofa(events)
-    except Exception:
-        pass
-
-    # ROTA 2: Túnel de Contingência de Alta Velocidade (corsproxy.io)
-    try:
-        url_proxy_io = f"https://corsproxy.io/?{requests.utils.quote(url_sofa)}"
-        resposta = requests.get(url_proxy_io, timeout=6)
-        if resposta.status_code == 200:
-            events = resposta.json().get('events', [])
-            if events:
-                return formatar_eventos_sofa(events)
-    except Exception:
-        pass
-
-    # ROTA 3: Túnel de Contingência Secundário (allorigins)
-    try:
-        url_allorigins = f"https://api.allorigins.win/get?url={requests.utils.quote(url_sofa)}"
-        resposta = requests.get(url_allorigins, timeout=7)
-        if resposta.status_code == 200:
-            dados_proxy = resposta.json()
-            conteudo_json = json.loads(dados_proxy.get('contents', '{}'))
-            events = conteudo_json.get('events', [])
-            if events:
-                return formatar_eventos_sofa(events)
-    except Exception:
-        pass
+        resposta = requests.get(url, timeout=10)
+        if resposta.status_code != 200:
+            raise Exception(f"Erro na comunicação com a ESPN: Status {resposta.status_code}")
+            
+        dados = resposta.json()
+        events = dados.get('events', [])
         
-    raise Exception("Todos os túneis de dados estão congestionados no momento. Mude a data do filtro ou recarregue a página para forçar uma nova rota de comunicação.")
+        jogos_formatados = []
+        for evento in events:
+            id_jogo = evento.get('id')
+            competicao = evento.get('competitions', [{}])[0]
+            campeonato_nome = evento.get('leagues', [{}])[0].get('name', 'Outros Confrontos')
+            
+            # Identificar Time da Casa e Visitante
+            competitors = competicao.get('competitors', [])
+            time_casa = "Não definido"
+            time_fora = "Não definido"
+            
+            for team_data in competitors:
+                if team_data.get('homeAway') == 'home':
+                    time_casa = team_data.get('team', {}).get('name')
+                elif team_data.get('homeAway') == 'away':
+                    time_fora = team_data.get('team', {}).get('name')
+            
+            # Extrair Horário ou Status em Tempo Real
+            status_jogo = competicao.get('status', {}).get('type', {}).get('shortDetail', '--:--')
+            
+            jogos_formatados.append({
+                "id": str(id_jogo),
+                "campeonato": campeonato_nome,
+                "pais": "Futebol Profissional",
+                "time_casa": time_casa,
+                "time_fora": time_fora,
+                "status": status_jogo
+            })
+            
+        return jogos_formatados
+        
+    except Exception as e:
+        raise Exception(f"Erro ao conectar com a base de dados esportiva: {str(e)}")
