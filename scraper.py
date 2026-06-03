@@ -2,28 +2,29 @@ import requests
 from datetime import datetime
 
 def buscar_jogos_do_dia(data_str=None):
-    """
-    Busca os jogos do dia direto da API interna do SofaScore.
-    Formato da data esperado: 'YYYY-MM-DD'
-    """
     if not data_str:
         data_str = datetime.today().strftime('%Y-%m-%d')
         
-    # URL da API interna do SofaScore para os jogos do dia
     url = f"https://api.sofascore.com/api/v1/sport/football/scheduled-events/{data_str}"
     
-    # Headers necessários para simular um navegador real e evitar bloqueios
+    # Headers profissionais muito mais completos para evitar o travamento/bloqueio
     headers = {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
+        "Accept": "*/*",
+        "Accept-Language": "pt-BR,pt;q=0.9,en;q=0.8",
+        "Referer": "https://www.sofascore.com/",
+        "Origin": "https://www.sofascore.com",
+        "Cache-Control": "max-age=0"
     }
     
     try:
-        resposta = requests.get(url, headers=headers)
+        # Colocamos um timeout de 10 segundos. Se o site travar, o código não fica rodando infinito
+        resposta = requests.get(url, headers=headers, timeout=10)
+        
         if resposta.status_code == 200:
             dados = resposta.json()
             jogos_formatados = []
             
-            # Filtrando e organizando o que nos interessa
             for evento in dados.get('events', []):
                 jogo = {
                     "id": evento.get('id'),
@@ -39,8 +40,8 @@ def buscar_jogos_do_dia(data_str=None):
                 jogos_formatados.append(jogo)
             return jogos_formatados
         else:
-            print(f"Erro ao acessar SofaScore: Status {resposta.status_code}")
+            print(f"Erro SofaScore: Status {resposta.status_code}")
             return []
     except Exception as e:
-        print(f"Erro na requisição: {e}")
+        print(f"Erro crítico de conexão: {e}")
         return []
