@@ -1,8 +1,11 @@
 import requests
 from datetime import datetime, timedelta
 
-# Dicionário de mapeamento oficial para organizar e traduzir as ligas globais
+# Dicionário de mapeamento oficial expandido com a Copa do Mundo
 MAPA_CAMPEONATOS = {
+    "fifa world cup": "🏆 Copa do Mundo FIFA",
+    "world cup": "🏆 Copa Mundo FIFA",
+    "fifa world cup qualifying": "🏆 Eliminatórias da Copa do Mundo",
     "copa libertadores": "🏆 Copa Libertadores",
     "copa sudamericana": "🌍 Copa Sul-Americana",
     "brazilian série a": "🇧🇷 Brasileirão Série A",
@@ -17,21 +20,15 @@ MAPA_CAMPEONATOS = {
     "italian serie a": "🇮🇹 Campeonato Italiano (Serie A)",
     "german bundesliga": "🇩🇪 Campeonato Alemão (Bundesliga)",
     "german 2. bundesliga": "🇩🇪 Alemanha - 2. Bundesliga",
-    "german 3. liga": "🇩🇪 Alemanha - 3. Liga",
     "french ligue 1": "🇫🇷 Campeonato Francês (Ligue 1)",
-    "french ligue 2": "🇫🇷 Campeonato Francês (Ligue 2)",
     "portuguese primeira liga": "🇵🇹 Campeonato Português (Liga Portugal)",
     "argentine liga profesional de fútbol": "🇦🇷 Campeonato Argentino",
     "argentine primera división": "🇦🇷 Campeonato Argentino",
     "norwegian eliteserien": "🇳🇴 Campeonato Norueguês (Eliteserien)",
     "norwegian 1. divisjon": "🇳🇴 Campeonato Norueguês (1. Divisão)",
     "english premier league": "🏴󠁧󠁢󠁥󠁮󠁧󠁿 Premier League (Inglaterra)",
-    "english league championship": "🏴󠁧󠁢󠁥󠁮󠁧󠁿 Championship (Inglaterra 2ª)",
     "uefa champions league": "🇪🇺 UEFA Champions League",
-    "uefa europa league": "🇪🇺 UEFA Europa League",
-    "mexican liga mx": "🇲🇽 Liga MX (México)",
-    "dutch eredivisie": "🇳🇱 Campeonato Holandês (Eredivisie)",
-    "american mls": "🇺🇸 MLS (Estados Unidos)"
+    "uefa europa league": "🇪🇺 UEFA Europa League"
 }
 
 def buscar_jogos_do_dia(data_str=None):
@@ -55,15 +52,13 @@ def buscar_jogos_do_dia(data_str=None):
             id_jogo = evento.get('id')
             competicao = evento.get('competitions', [{}])[0]
             
-            # FILTRO PRÉ-JOGO: Garante apenas partidas que NÃO começaram
+            # FILTRO PRÉ-JOGO: Apenas partidas futuras
             status_obj = competicao.get('status', {})
             estado_jogo = status_obj.get('type', {}).get('state', 'pre') 
             if estado_jogo != 'pre':
                 continue
                 
             campeonato_original = evento.get('leagues', [{}])[0].get('name', 'Outros Confrontos')
-            
-            # Aplica a tradução amigável se a liga estiver mapeada no nosso dicionário
             campeonato_nome = MAPA_CAMPEONATOS.get(campeonato_original.lower(), campeonato_original)
             
             competitors = competicao.get('competitors', [])
@@ -76,7 +71,7 @@ def buscar_jogos_do_dia(data_str=None):
                 elif team_data.get('homeAway') == 'away':
                     time_fora = team_data.get('team', {}).get('name')
             
-            # Fuso Horário UTC para Brasília (UTC-3)
+            # Fuso Horário UTC para Brasília
             data_utc_str = competicao.get('date', '') 
             horario_brasilia = "--:--"
             if data_utc_str:
