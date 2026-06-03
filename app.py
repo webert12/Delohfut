@@ -7,7 +7,7 @@ from analises import calcular_analise_completa
 st.set_page_config(page_title="Dashboard Pro Analytics", layout="wide")
 
 st.title("📊 Dashboard de Análise Esportiva Avançada")
-st.markdown("Fontes de Coleta Integrada: *SofaScore Real-Time*")
+st.markdown("Fontes de Coleta Integrada: *SofaScore & Flashscore (Dados 100% Reais)*")
 
 # --- FILTROS DE SELEÇÃO LATERAL ---
 st.sidebar.header("🔍 Filtros de Busca")
@@ -17,10 +17,10 @@ data_formatada = data_selecionada.strftime('%Y-%m-%d')
 
 lista_jogos = []
 try:
-    with st.spinner("Buscando partidas reais no servidor..."):
+    with st.spinner("Conectando aos servidores esportivos em tempo real..."):
         lista_jogos = buscar_jogos_do_dia(data_formatada)
 except Exception as e:
-    st.error(str(e))
+    st.error(f"⚠️ {str(e)}")
 
 if lista_jogos:
     df_jogos = pd.DataFrame(lista_jogos)
@@ -55,21 +55,24 @@ if lista_jogos:
         t_casa = str(linha_jogo['time_casa'])
         t_fora = str(linha_jogo['time_fora'])
         
-        # Puxar dados estritamente reais extraídos do SofaScore
-        res = calcular_analise_completa(id_jogo, t_casa, t_fora)
+        # Puxar dados estritamente reais extraídos das APIs esportivas
+        with st.spinner("Puxando histórico e estatísticas oficiais..."):
+            res = calcular_analise_completa(id_jogo, t_casa, t_fora)
         
         st.subheader(f"🛠️ O que você deseja analisar em {jogo_selecionado}?")
         
         # --- SELEÇÕES MÚLTIPLAS DE MERCADOS ---
         analisar_tudo = st.checkbox("🔥 ANALISAR TUDO DE UMA SÓ VEZ", value=False)
         
-        col_m1, col_m2, col_m3 = st.columns(3)
+        col_m1, col_m2, col_m3, col_m4 = st.columns(4)
         with col_m1:
-            quero_cartoes = st.checkbox("🟨 Cartões e Arbitragem", value=False if not analisar_tudo else True)
+            quero_probabilidades = st.checkbox("📈 Probabilidades e Favoritismo", value=False if not analisar_tudo else True)
         with col_m2:
-            quero_gols = st.checkbox("⚽ Tendências de Gols", value=False if not analisar_tudo else True)
+            quero_gols = st.checkbox("⚽ Gols (HT / FT)", value=False if not analisar_tudo else True)
         with col_m3:
-            quero_probabilidades = st.checkbox("📈 Probabilidades Reais", value=False if not analisar_tudo else True)
+            quero_cartoes = st.checkbox("🟨 Cartões e Arbitragem", value=False if not analisar_tudo else True)
+        with col_m4:
+            quero_escanteios = st.checkbox("📐 Escanteios (Cantos)", value=False if not analisar_tudo else True)
             
         st.divider()
         
@@ -78,23 +81,41 @@ if lista_jogos:
         if analisar_tudo or quero_probabilidades:
             st.markdown("### 📈 Probabilidades e Previsões do Confronto")
             st.info(f"**Votação Global do Público:** {res['probabilidade_vitoria']}")
-            st.metric("⭐ Tendência de Favoritismo", res['time_favorito'])
+            
+            c1, c2, c3 = st.columns(3)
+            with c1:
+                st.metric("⭐ Maior Probabilidade de Vitória", res['time_favorito'])
+            with c2:
+                st.metric("🎯 Tendência de Ataque Eficiente", res['time_ataque_forte'])
+            with c3:
+                st.metric("⚠️ Maior Propensão a Cartões", res['time_mais_faltoso'])
             st.write("---")
 
         if analisar_tudo or quero_gols:
-            st.markdown("### ⚽ Análise Real de Gols (Últimos Confrontos)")
+            st.markdown("### ⚽ Tendências Reais de Gols (Últimos Confrontos)")
             st.markdown(res['tendencia_gols'])
             st.write("---")
             
         if analisar_tudo or quero_cartoes:
-            st.markdown("### 🟨 Relatório Disciplinar de Cartões")
-            st.metric("👨‍⚖️ Árbitro Escalado", res['juiz_nome'])
-            st.write("**Histórico de Padrões Recentes:**")
+            st.markdown("### 🟨 Relatório Disciplinar de Cartões e Juiz")
+            
+            ca1, ca2 = st.columns(2)
+            with ca1:
+                st.metric("👨‍⚖️ Árbitro Escalado", res['juiz_nome'])
+            with ca2:
+                st.metric("📋 Média Geral do Juiz", res['media_juiz'])
+                
+            st.write("**Histórico de Padrões das Equipes:**")
             st.markdown(res['tendencia_cartoes'])
             st.write("---")
             
-        if not (analisar_tudo or quero_cartoes or quero_gols or quero_probabilidades):
+        if analisar_tudo or quero_escanteios:
+            st.markdown("### 📐 Análise de Escanteios (Cantos)")
+            st.write("**Padrões de Cantos Encontrados nos Últimos Jogos:**")
+            st.markdown(res['tendencia_escanteios'])
+            st.write("---")
+            
+        if not (analisar_tudo or quero_cartoes or quero_escanteios or quero_gols or quero_probabilidades):
             st.warning("Marque uma ou mais caixas acima para exibir as estatísticas correspondentes.")
 else:
-    if not lista_jogos:
-        st.warning("Nenhum jogo oficial encontrado ou o servidor do SofaScore recusou a conexão automatizada.")
+    st.info("Caso a rede do servidor apresente lentidão, altere a data do filtro lateral ou dê um 'Reboot app' no Streamlit Cloud.")
