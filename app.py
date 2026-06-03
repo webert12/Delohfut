@@ -1,6 +1,7 @@
 import streamlit as st
 import pandas as pd
 import requests
+import random
 from datetime import datetime, timedelta
 
 # --- CONFIGURAÇÃO DA PÁGINA (ESTILO DASHBOARD PREMIUM) ---
@@ -39,7 +40,7 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# 📊 BANCO DE DADOS DE FORÇA TÉCNICA (Evita favoritismo errado como o da Alemanha)
+# 📊 BANCO DE DADOS DE FORÇA TÉCNICA (Power Ratings)
 TABELA_FORCA = {
     "Germany": 88, "Brazil": 90, "Argentina": 91, "France": 92, "Spain": 89, 
     "England": 89, "Portugal": 88, "Italy": 86, "Netherlands": 86, "Ivory Coast": 76,
@@ -47,7 +48,7 @@ TABELA_FORCA = {
     "Flamengo": 82, "Palmeiras": 82, "River Plate": 80, "Boca Juniors": 77
 }
 
-# 📡 SCRAPER DA API COM CAPTURA DE DADOS REAIS DE ARBITRAGEM E MERCADO
+# 📡 SCRAPER DA API COM CAPTURA DE DADOS REAIS
 def buscar_jogos_do_dia(data_str, liga_slug="all"):
     if data_str:
         data_espn = str(data_str).replace("-", "")
@@ -70,7 +71,7 @@ def buscar_jogos_do_dia(data_str, liga_slug="all"):
                     referees = competicao.get('referees', [])
                     juiz_real = referees[0].get('displayName') if referees else "Escala pendente pela Liga"
                     
-                    # Captura de Linhas de Gols/Odds Reais da ESPN
+                    # Captura de Linhas de Gols/Odds Reais
                     odds_list = competicao.get('odds', [])
                     linha_gols_real = odds_list[0].get('overUnder') if odds_list else None
                     odds_detalhe_real = odds_list[0].get('details') if odds_list else None
@@ -101,34 +102,29 @@ def buscar_jogos_do_dia(data_str, liga_slug="all"):
     except: pass
     return jogos_formatados
 
-# 🧠 MOTOR ANALÍTICO CONFIGURADO POR DISPARIDADE TÉCNICA REAL
+# 🧠 MOTOR ANALÍTICO CONFIGURADO POR DISPARIDADE TÉCNICA
 def calcular_analise_real(time_c, time_f, linha_gols_api):
     f_casa = TABELA_FORCA.get(time_c, 75)
     f_fora = TABELA_FORCA.get(time_f, 75)
     
-    # Cálculo matemático do 1X2 baseado em Power Rating + Vantagem de Casa (+3 pontos)
     peso_casa = f_casa + 3
     peso_fora = f_fora
     total_peso = peso_casa + peso_fora
     
     diff = peso_casa - peso_fora
     
-    # Definição matemática precisa das probabilidades reais de campo
     prob_casa = int(max(15, min(85, 45 + (diff * 2.5))))
     prob_fora = int(max(10, min(80, 35 - (diff * 2.5))))
     prob_empate = max(5, 100 - prob_casa - prob_fora)
     
-    # Ajuste dinâmico de tendências baseado no nível ofensivo dos times
     nivel_gols = (f_casa + f_fora) / 2
     ht_over = int(max(40, min(92, nivel_gols * 0.85 + (diff if diff > 0 else 0))))
     ft_over_25 = int(max(30, min(85, nivel_gols * 0.70)))
     btts = int(max(35, min(78, (100 - prob_empate) * 0.8)))
     
-    # Projeção de cantos proporcional à força ofensiva de quem joga em casa e fora
     cantos_c = round(max(3.5, min(8.5, (f_casa / 12) + 1)), 1)
     cantos_f = round(max(3.0, min(7.5, (f_fora / 14))), 1)
     
-    # Cartões baseados na competitividade do jogo (jogos equilibrados = mais cartões)
     proximidade = 20 - abs(prob_casa - prob_fora)
     cartoes = round(max(2.5, min(6.5, 3.0 + (proximidade * 0.15))), 1)
     
@@ -178,7 +174,7 @@ if lista_jogos:
     t_fora = str(jogo_focado['time_fora'])
     horario = str(jogo_focado['status'])
     juiz_do_jogo = str(jogo_focado['juiz'])
-    linha_gols_api = juego_focado['linha_gols']
+    linha_gols_api = jogo_focado['linha_gols']
     linha_odds_api = jogo_focado['odds_detalhe']
     
     # 🎴 BANNER DE CONFRONTO ESTILO PLACAR LIVE
@@ -189,10 +185,10 @@ if lista_jogos:
         </div>
     """, unsafe_allow_html=True)
     
-    # Processa métricas realistas baseadas na força real das equipes
+    # Processa as métricas
     m = calcular_analise_real(t_casa, t_fora, linha_gols_api)
     
-    # 📊 SEÇÃO 1: PROBABILIDADES DE VITÓRIA REALISTAS (1X2)
+    # 📊 SEÇÃO 1: PROBABILIDADES DE VITÓRIA (1X2)
     st.markdown("### 🧭 Probabilidades de Resultado Final (1X2)")
     col_c, col_e, col_f = st.columns(3)
     
@@ -256,5 +252,4 @@ if lista_jogos:
         st.markdown("</div>", unsafe_allow_html=True)
         
 else:
-    # REQUISITO PRINCIPAL ATENDIDO: Se não houver jogos reais, apenas mostra a mensagem limpa
     st.warning(f"⚠️ Nenhuma partida pré-jogo real localizada para a liga {campeonato_selecionado} na data selecionada ({data_selecionada.strftime('%d/%m/%Y')}).")
