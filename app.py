@@ -46,9 +46,11 @@ if lista_jogos:
     
     if jogo_selecionado:
         linha_jogo = df_jogos[df_jogos['partida'] == jogo_selecionado].iloc[0]
-        id_jogo = linha_jogo['id']
-        t_casa = linha_jogo['time_casa']
-        t_fora = linha_jogo['time_fora']
+        
+        # CORREÇÃO AQUI: Forçando a conversão para tipos nativos do Python para evitar erros no random.seed()
+        id_jogo = int(linha_jogo['id'])
+        t_casa = str(linha_jogo['time_casa'])
+        t_fora = str(linha_jogo['time_fora'])
         
         # Puxar métricas calculadas dos últimos 5 jogos
         res = calcular_analise_completa(id_jogo, t_casa, t_fora)
@@ -112,7 +114,7 @@ if lista_jogos:
         if analisar_tudo or quero_escanteios:
             st.markdown("### 📐 Análise de Escanteios (Cantos)")
             st.metric("📐 Linha Média Estimada de Cantos", f"{res['media_escanteios']} Escanteios")
-            st.caption("Métrica consolidada somando as propensões ofensivas e c cessões defensivas das duas equipes nos últimos confrontos.")
+            st.caption("Métrica consolidada somando as propensões ofensivas e cessões defensivas das duas equipes nos últimos confrontos.")
             st.write("---")
             
         if not (analisar_tudo or quero_cartoes or quero_escanteios or quero_gols or quero_probabilidades):
