@@ -1,14 +1,13 @@
 import requests
 from datetime import datetime, timedelta
 
-def buscar_jogos_do_dia(data_str, liga_slug="all"):
-    if data_str:
-        data_espn = data_str.replace("-", "")
-    else:
+def buscar_jogos_do_dia(data_str=None, liga_slug="all"):
+    # Validação do formato da data recebida
+    if not data_str:
         data_espn = datetime.now().strftime("%Y%m%d")
+    else:
+        data_espn = str(data_str).replace("-", "")
         
-    # Se o usuário escolheu uma liga específica, batemos direto no banco dela (traz dados do futuro)
-    # Se for "Outros", usamos o agregador geral "all"
     url = f"https://site.api.espn.com/apis/site/v2/sports/soccer/{liga_slug}/scoreboard?dates={data_espn}"
     jogos_formatados = []
     
@@ -27,7 +26,7 @@ def buscar_jogos_do_dia(data_str, liga_slug="all"):
                     continue
                 competicao = competitions[0]
                 
-                # FILTRO PRÉ-JOGO: Remove o que já começou ou terminou
+                # FILTRO PRÉ-JOGO: Mantém apenas partidas futuras
                 status_obj = competicao.get('status', {})
                 estado_jogo = status_obj.get('type', {}).get('state', 'pre') 
                 if estado_jogo != 'pre':
@@ -43,7 +42,7 @@ def buscar_jogos_do_dia(data_str, liga_slug="all"):
                     elif team_data.get('homeAway') == 'away':
                         time_fora = team_data.get('team', {}).get('name')
                 
-                # Ajuste Fuso Horário UTC -> Brasília
+                # Fuso Horário UTC -> Brasília
                 data_utc_str = competicao.get('date', '') 
                 horario_brasilia = "--:--"
                 if data_utc_str:
