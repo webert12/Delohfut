@@ -1,11 +1,11 @@
 import requests
 from datetime import datetime, timedelta
 
-# Dicionário de mapeamento oficial expandido com a Copa do Mundo
+# Dicionário mapeador estruturado para linkar a API com a sua lista fixa da tela
 MAPA_CAMPEONATOS = {
     "fifa world cup": "🏆 Copa do Mundo FIFA",
-    "world cup": "🏆 Copa Mundo FIFA",
-    "fifa world cup qualifying": "🏆 Eliminatórias da Copa do Mundo",
+    "world cup": "🏆 Copa do Mundo FIFA",
+    "fifa world cup qualifying": "🏆 Copa do Mundo FIFA",
     "copa libertadores": "🏆 Copa Libertadores",
     "copa sudamericana": "🌍 Copa Sul-Americana",
     "brazilian série a": "🇧🇷 Brasileirão Série A",
@@ -14,21 +14,16 @@ MAPA_CAMPEONATOS = {
     "brazilian serie b": "🇧🇷 Brasileirão Série B",
     "brazilian challenger sn": "🇧🇷 Brasileirão Série B",
     "brazilian copa do brasil": "🇧🇷 Copa do Brasil",
-    "saudi professional league": "🇸🇦 Liga Saudita (Arabia Saudita)",
+    "saudi professional league": "🇸🇦 Liga Saudita (Arábia Saudita)",
     "spanish laliga": "🇪🇸 Campeonato Espanhol (LaLiga)",
     "spanish primera división": "🇪🇸 Campeonato Espanhol (LaLiga)",
     "italian serie a": "🇮🇹 Campeonato Italiano (Serie A)",
     "german bundesliga": "🇩🇪 Campeonato Alemão (Bundesliga)",
-    "german 2. bundesliga": "🇩🇪 Alemanha - 2. Bundesliga",
     "french ligue 1": "🇫🇷 Campeonato Francês (Ligue 1)",
     "portuguese primeira liga": "🇵🇹 Campeonato Português (Liga Portugal)",
     "argentine liga profesional de fútbol": "🇦🇷 Campeonato Argentino",
     "argentine primera división": "🇦🇷 Campeonato Argentino",
-    "norwegian eliteserien": "🇳🇴 Campeonato Norueguês (Eliteserien)",
-    "norwegian 1. divisjon": "🇳🇴 Campeonato Norueguês (1. Divisão)",
-    "english premier league": "🏴󠁧󠁢󠁥󠁮󠁧󠁿 Premier League (Inglaterra)",
-    "uefa champions league": "🇪🇺 UEFA Champions League",
-    "uefa europa league": "🇪🇺 UEFA Europa League"
+    "norwegian eliteserien": "🇳🇴 Campeonato Norueguês (Eliteserien)"
 }
 
 def buscar_jogos_do_dia(data_str=None):
@@ -42,24 +37,25 @@ def buscar_jogos_do_dia(data_str=None):
     try:
         resposta = requests.get(url, timeout=10)
         if resposta.status_code != 200:
-            raise Exception(f"Erro na comunicação: Status {resposta.status_code}")
+            return []
             
         dados = resposta.json()
         events = dados.get('events', [])
         
         jogos_formatados = []
         for evento in events:
-            id_jogo = evento.get('id')
             competicao = evento.get('competitions', [{}])[0]
             
-            # FILTRO PRÉ-JOGO: Apenas partidas futuras
+            # FILTRO PRÉ-JOGO: Descarta o que já começou ou terminou
             status_obj = competicao.get('status', {})
             estado_jogo = status_obj.get('type', {}).get('state', 'pre') 
             if estado_jogo != 'pre':
                 continue
                 
-            campeonato_original = evento.get('leagues', [{}])[0].get('name', 'Outros Confrontos')
-            campeonato_nome = MAPA_CAMPEONATOS.get(campeonato_original.lower(), campeonato_original)
+            campeonato_original = evento.get('leagues', [{}])[0].get('name', '').strip()
+            
+            # Se a liga não estiver no mapa solicitado, ela cai em "Outros Confrontos"
+            campeonato_nome = MAPA_CAMPEONATOS.get(campeonato_original.lower(), "⚽ Outros Confrontos")
             
             competitors = competicao.get('competitors', [])
             time_casa = "Não definido"
@@ -71,7 +67,7 @@ def buscar_jogos_do_dia(data_str=None):
                 elif team_data.get('homeAway') == 'away':
                     time_fora = team_data.get('team', {}).get('name')
             
-            # Fuso Horário UTC para Brasília
+            # Ajuste de Fuso Horário (UTC para Brasília)
             data_utc_str = competicao.get('date', '') 
             horario_brasilia = "--:--"
             if data_utc_str:
@@ -83,7 +79,7 @@ def buscar_jogos_do_dia(data_str=None):
                     horario_brasilia = status_obj.get('type', {}).get('shortDetail', '--:--')
 
             jogos_formatados.append({
-                "id": str(id_jogo),
+                "id": str(evento.get('id')),
                 "campeonato": campeonato_nome,
                 "time_casa": time_casa,
                 "time_fora": time_fora,
@@ -92,5 +88,5 @@ def buscar_jogos_do_dia(data_str=None):
             
         return jogos_formatados
         
-    except Exception as e:
-        raise Exception(f"Erro ao conectar com a base de dados: {str(e)}")
+    except Exception:
+        return []
