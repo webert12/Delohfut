@@ -14,7 +14,6 @@ st.sidebar.header("🔍 Configurações")
 data_selecionada = st.sidebar.date_input("Escolha a Data da Rodada", datetime.today())
 data_formatada = data_selecionada.strftime('%Y-%m-%d')
 
-# 🧾 LISTA DE CAMPEONATOS EXIGIDA (Sempre visível na tela)
 CAMPEONATOS_FIXOS = [
     "🏆 Copa do Mundo FIFA",
     "🏆 Copa Libertadores",
@@ -33,14 +32,13 @@ CAMPEONATOS_FIXOS = [
     "⚽ Outros Confrontos"
 ]
 
-# 🧱 PASSO 1: Escolher o Campeonato (Sempre visível, mesmo sem jogos no dia)
+# 🧱 PASSO 1: Escolher o Campeonato
 st.subheader("🏆 Passo 1: Selecione o Campeonato")
 campeonato_selecionado = st.selectbox("Escolha a liga que deseja analisar:", CAMPEONATOS_FIXOS)
 
-# Executa a busca em background para a data escolhida
+# Coleta os dados do dia de forma segura
 lista_jogos = buscar_jogos_do_dia(data_formatada)
 
-# Filtra a resposta da API com base na escolha fixa do usuário
 df_filtrado_liga = pd.DataFrame()
 if lista_jogos:
     df_jogos = pd.DataFrame(lista_jogos)
@@ -48,7 +46,7 @@ if lista_jogos:
 
 st.divider()
 
-# VALIDAÇÃO CRÍTICA: Se houver jogos na liga escolhida, segue o fluxo. Se não, avisa o usuário.
+# Exibição baseada no filtro
 if not df_filtrado_liga.empty:
     
     # 🧱 PASSO 2: Escolher o Time
@@ -56,7 +54,6 @@ if not df_filtrado_liga.empty:
     times_disponiveis = sorted(list(set(df_filtrado_liga['time_casa'].tolist() + df_filtrado_liga['time_fora'].tolist())))
     time_selecionado = st.selectbox("Escolha a equipe para focar a análise pré-jogo:", times_disponiveis)
     
-    # Localização automática do confronto direto por causa do time escolhido
     linha_jogo = df_filtrado_liga[(df_filtrado_liga['time_casa'] == time_selecionado) | (df_filtrado_liga['time_fora'] == time_selecionado)].iloc[0]
     
     id_jogo = str(linha_jogo['id'])
@@ -101,5 +98,4 @@ if not df_filtrado_liga.empty:
         st.markdown(res['tendencia_cartoes'])
         st.write("---")
 else:
-    # Mensagem de tratamento limpa exigida por você caso a liga não possua partidas futuras na data
     st.warning(f"⚠️ Não existem jogos pré-confronto agendados para o campeonato **{campeonato_selecionado}** na data selecionada ({data_selecionada.strftime('%d/%m/%Y')}).")
