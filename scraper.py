@@ -1,8 +1,8 @@
 import requests
-from datetime import datetime
+from datetime import datetime, timedelta
 
 def buscar_jogos_do_dia(data_str=None):
-    # Converte o formato do Streamlit (YYYY-MM-DD) para o formato da ESPN (YYYYMMDD)
+    # Converte o formato do calendário (YYYY-MM-DD) para o padrão da API (YYYYMMDD)
     if data_str:
         data_espn = data_str.replace("-", "")
     else:
@@ -13,7 +13,7 @@ def buscar_jogos_do_dia(data_str=None):
     try:
         resposta = requests.get(url, timeout=10)
         if resposta.status_code != 200:
-            raise Exception(f"Erro na comunicação com a ESPN: Status {resposta.status_code}")
+            raise Exception(f"Erro na comunicação: Status {resposta.status_code}")
             
         dados = resposta.json()
         events = dados.get('events', [])
@@ -22,9 +22,16 @@ def buscar_jogos_do_dia(data_str=None):
         for evento in events:
             id_jogo = evento.get('id')
             competicao = evento.get('competitions', [{}])[0]
+            
+            # 🚫 FILTRO DE SEGURANÇA: Descarta jogos ao vivo ('in') ou finalizados ('post')
+            status_obj = competicao.get('status', {})
+            estado_jogo = status_obj.get('type', {}).get('state', 'pre') 
+            
+            if estado_jogo != 'pre':
+                continue # Ignora completamente e pula para o próximo
+                
             campeonato_nome = evento.get('leagues', [{}])[0].get('name', 'Outros Confrontos')
             
-            # Identificar Time da Casa e Visitante
             competitors = competicao.get('competitors', [])
             time_casa = "Não definido"
             time_fora = "Não definido"
@@ -35,16 +42,23 @@ def buscar_jogos_do_dia(data_str=None):
                 elif team_data.get('homeAway') == 'away':
                     time_fora = team_data.get('team', {}).get('name')
             
-            # Extrair Horário ou Status em Tempo Real
-            status_jogo = competicao.get('status', {}).get('type', {}).get('shortDetail', '--:--')
-            
+            # Trata o fuso horário UTC da API para o Horário de Brasília (UTC-3)
+            data_utc_str = competicao.get('date', '') 
+            horario_brasilia = "--:--"
+            if data_utc_str:
+                try:
+                    dt_utc = datetime.strptime(data_utc_str, "%Y-%m-%dT%H:%MZ")
+                    dt_br = dt_utc - timedelta(hours=3)
+                    horario_brasilia = dt_br.strftime('%H:%M')
+                except:
+                    horario_brasilia = status_obj.get('type', {}).get('shortDetail', '--:--')
+
             jogos_formatados.append({
                 "id": str(id_jogo),
                 "campeonato": campeonato_nome,
-                "pais": "Futebol Profissional",
                 "time_casa": time_casa,
                 "time_fora": time_fora,
-                "status": status_jogo
+                "status": horario_brasilia
             })
             
         return jogos_formatados
