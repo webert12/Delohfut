@@ -52,4 +52,47 @@ if lista_jogos:
 
 else:
     st.warning("Nenhum jogo encontrado para a data selecionada ou limite de requisições atingido.")
+        # ... (código anterior do app.py continua igual) ...
+    
+    # Criar uma lista de nomes de jogos para o usuário escolher qual analisar
+    df_jogos['partida'] = df_jogos['time_casa'] + " x " + df_jogos['time_fora']
+    jogo_para_analisar = st.selectbox("Selecione um jogo para abrir as estatísticas de Gols, Cartões e Árbitro:", df_jogos['partida'])
+
+    # --- NOVA PARTE CONECTANDO O ARQUIVO DE ANÁLISES ---
+    if jogo_para_analisar:
+        # Descobrir o ID do jogo selecionado
+        id_do_jogo = df_jogos[df_jogos['partida'] == juego_para_analisar]['id'].values[0]
+        
+        st.subheader(f"📊 Relatório Avançado: {jogo_para_analisar}")
+        
+        # Importando as funções do analises.py dinamicamente
+        from analises import puxar_detalhes_do_jogo, calcular_probabilidade_cartoes, analisar_gols_e_escanteios
+        
+        detalhes = puxar_detalhes_do_jogo(id_do_jogo)
+        
+        col1, col2, col3 = st.columns(3)
+        
+        if detalhes and detalhes['arbitro']['nome'] != 'Não informado':
+            arbitro = detalhes['arbitro']
+            stats_arbitro = calcular_probabilidade_cartoes(arbitro['id'])
+            
+            with col1:
+                st.metric(label="👨‍⚖️ Árbitro Escalado", value=arbitro['nome'])
+                st.write(f"**Tendência:** {stats_arbitro.get('tendencia', 'N/A')}")
+                st.write(f"📊 Média de Amarelos/Jogo: **{stats_arbitro.get('media_amarelos')}**")
+        else:
+            with col1:
+                st.info("Árbitro ainda não escalado ou não encontrado para esta partida.")
+                
+        # Bloco de Gols e Escanteios
+        stats_jogo = analisar_gols_e_escanteios(id_do_jogo)
+        if stats_jogo:
+            with col2:
+                st.metric(label="⚽ Probabilidade Gol no 1º Tempo (HT)", value=stats_jogo['probabilidade_gol_ht'])
+                st.caption("Baseado nos últimos 10 jogos de ambas as equipes.")
+                
+            with col3:
+                st.metric(label="📐 Média Est. de Escanteios", value=f"{stats_jogo['media_escanteios_jogo']} Cantos")
+                st.caption("Tendência da linha de Over/Under para o mercado.")
+                
 
