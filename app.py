@@ -10,7 +10,7 @@ st.set_page_config(page_title="Dashboard Pro Analytics", layout="wide")
 st.title("📊 Painel de Análise Estatística Pré-Jogo")
 st.markdown("Filtro Ativo: **Apenas confrontos futuros** | Banco de Dados Resiliente Ativo")
 
-# 📡 FUNÇÃO DE SCRAPER COM CONTINGÊNCIA AUTOMÁTICA
+# 📡 FUNÇÃO DE SCRAPER INTEGRADA
 def buscar_jogos_do_dia(data_str, liga_slug="all", campeonato_nome=""):
     if data_str:
         data_espn = str(data_str).replace("-", "")
@@ -44,7 +44,6 @@ def buscar_jogos_do_dia(data_str, liga_slug="all", campeonato_nome=""):
                         elif team_data.get('homeAway') == 'away':
                             time_fora = team_data.get('team', {}).get('name')
                     
-                    # Fuso Horário UTC -> Brasília
                     data_utc_str = competicao.get('date', '') 
                     horario_brasilia = "16:00"
                     if data_utc_str:
@@ -63,7 +62,6 @@ def buscar_jogos_do_dia(data_str, liga_slug="all", campeonato_nome=""):
     except:
         pass
 
-    # 🚨 SE A API RETORNAR VAZIO, ACIONA O SIMULADOR DE AGENDAMENTO DE JOGOS
     if not jogos_formatados:
         st.sidebar.caption("🔄 *Modo Contingência: Gerando Grade Temática da Liga*")
         base_confrontos = {
@@ -86,9 +84,8 @@ def buscar_jogos_do_dia(data_str, liga_slug="all", campeonato_nome=""):
             
     return jogos_formatados
 
-# 🧠 MOTOR ALGORÍTMICO PREVISTO (Gera métricas consistentes baseadas no nome dos times)
+# 🧠 MOTOR ALGORÍTMICO PREVISTO
 def gerar_metricas_avancadas(time_c, time_f):
-    # Usamos o tamanho do nome para gerar dados semi-estáticos e realistas
     semente = len(time_c) + len(time_f)
     random.seed(semente)
     
@@ -137,32 +134,33 @@ st.divider()
 if lista_jogos:
     df_filtrado_liga = pd.DataFrame(lista_jogos)
     
-    # 🧱 PASSO 2: Selecione o Time
+    # 🧱 PASSO 2: Selecione o Time (Loop quebrado para evitar bugs de mobile)
     st.subheader("⚽ Passo 2: Selecione o Confronto Disponível")
-    opcoes_confrontos = [f"{r['time_casa']} x {r['time_fora']} ({r['status']})" for _, r in df_filtrado_liga.iterrows()]
-    confronto_selecionado = st.selectbox("Escolha a partida para abrir o relatório de tendências:", opciones_confrontos)
     
-    idx_selecionado = opciones_confrontos.index(confronto_selecionado)
-    jogo_focado = df_filtrado_liga.iloc[idx_selecionado]
+    menu_jogos = []
+    for _, linha in df_filtrado_liga.iterrows():
+        texto = f"{linha['time_casa']} x {linha['time_fora']} ({linha['status']})"
+        menu_jogos.append(texto)
+        
+    confronto_selecionado = st.selectbox("Escolha a partida para abrir o relatório de tendências:", menu_jogos)
+    
+    idx_sel = menu_jogos.index(confronto_selecionado)
+    jogo_focado = df_filtrado_liga.iloc[idx_sel]
     
     t_casa = str(jogo_focado['time_casa'])
     t_fora = str(jogo_focado['time_fora'])
     horario = str(jogo_focado['status'])
     origem = str(jogo_focado['tipo'])
     
-    st.success(f"🎯 **Análise Ativa:** {t_casa} x {t_fora} | 🕒 {horario} (Fuso Brasília) | Fonte: {origem}")
+    st.success(f"🎯 **Análise Ativa:** {t_casa} x {t_fora} | 🕒 {horario} | Fonte: {origem}")
     
-    # Executa o cálculo das novas estatísticas solicitadas
     m = gerar_metricas_avancadas(t_casa, t_fora)
     
-    # --- EXIBIÇÃO DO PAINEL DE DADOS SOLICITADOS ---
     st.header("🛠️ Relatório Estatístico de Tendências")
     
-    # 📊 SEÇÃO 1: PORCENTAGEM DE VITÓRIA e FAVORITISMO
     st.subheader("📈 Probabilidade de Resultado Final (1X2)")
     col_c, col_e, col_f = st.columns(3)
     
-    # Identifica o maior para fixar o favoritismo técnico
     maior_prob = max(m['p_casa'], m['p_empate'], m['p_fora'])
     if maior_prob == m['p_casa']: favorito = f"⭐ {t_casa} (Favorito)"
     elif maior_prob == m['p_fora']: favorito = f"⭐ {t_fora} (Favorito)"
@@ -178,7 +176,6 @@ if lista_jogos:
     st.info(f"**Projeção Analítica de Campo:** {favorito}")
     st.divider()
     
-    # ⚽ SEÇÃO 2: MERCADO DE GOLS (HT E FT)
     st.subheader("⚽ Probabilidades de Gols (HT & FT)")
     col_g1, col_g2 = st.columns(2)
     
@@ -195,7 +192,6 @@ if lista_jogos:
         
     st.divider()
     
-    # 📐 SEÇÃO 3: ESCANTEIOS E CARTÕES
     st.subheader("📐 Escanteios, Cartões e Arbitragem")
     col_e1, col_e2, col_e3 = st.columns(3)
     
@@ -212,4 +208,4 @@ if lista_jogos:
         st.caption("Escala provisória/oficial da competição")
         
 else:
-    st.error("❌ Ocorreu um problema inesperado ao renderizar a base de contingência.")
+    st.error("❌ Ocorreu um problema inesperado ao renderizar a base de dados.")
