@@ -7,41 +7,56 @@ from analises import calcular_analise_completa
 st.set_page_config(page_title="Dashboard Pro Analytics", layout="wide")
 
 st.title("📊 Painel de Análise Estatística Pré-Jogo")
-st.markdown("Filtro Ativo: **Apenas confrontos futuros** | Seleção Encadeada de Ligas")
+st.markdown("Filtro Ativo: **Apenas confrontos futuros**")
 
 # --- FILTROS DE SELEÇÃO LATERAL ---
 st.sidebar.header("🔍 Configurações")
 data_selecionada = st.sidebar.date_input("Escolha a Data da Rodada", datetime.today())
 data_formatada = data_selecionada.strftime('%Y-%m-%d')
 
-lista_jogos = []
-try:
-    with st.spinner("Buscando dados da rodada mundial..."):
-        lista_jogos = buscar_jogos_do_dia(data_formatada)
-except Exception as e:
-    st.error(f"⚠️ {str(e)}")
+# 🧾 LISTA DE CAMPEONATOS EXIGIDA (Sempre visível na tela)
+CAMPEONATOS_FIXOS = [
+    "🏆 Copa do Mundo FIFA",
+    "🏆 Copa Libertadores",
+    "🌍 Copa Sul-Americana",
+    "🇧🇷 Brasileirão Série A",
+    "🇧🇷 Brasileirão Série B",
+    "🇧🇷 Copa do Brasil",
+    "🇸🇦 Liga Saudita (Arábia Saudita)",
+    "🇪🇸 Campeonato Espanhol (LaLiga)",
+    "🇮🇹 Campeonato Italiano (Serie A)",
+    "🇩🇪 Campeonato Alemão (Bundesliga)",
+    "🇫🇷 Campeonato Francês (Ligue 1)",
+    "🇵🇹 Campeonato Português (Liga Portugal)",
+    "🇦🇷 Campeonato Argentino",
+    "🇳🇴 Campeonato Norueguês (Eliteserien)",
+    "⚽ Outros Confrontos"
+]
 
+# 🧱 PASSO 1: Escolher o Campeonato (Sempre visível, mesmo sem jogos no dia)
+st.subheader("🏆 Passo 1: Selecione o Campeonato")
+campeonato_selecionado = st.selectbox("Escolha a liga que deseja analisar:", CAMPEONATOS_FIXOS)
+
+# Executa a busca em background para a data escolhida
+lista_jogos = buscar_jogos_do_dia(data_formatada)
+
+# Filtra a resposta da API com base na escolha fixa do usuário
+df_filtrado_liga = pd.DataFrame()
 if lista_jogos:
     df_jogos = pd.DataFrame(lista_jogos)
-    
-    # 🧱 PASSO 1: Escolher o Campeonato Primeiro
-    st.subheader("🏆 Passo 1: Selecione o Campeonato")
-    todos_campeonatos = sorted(df_jogos['campeonato'].unique())
-    campeonato_selecionado = st.selectbox("Selecione a liga que deseja analisar:", todos_campeonatos, index=0)
-    
-    # Filtrar o DataFrame apenas com o campeonato escolhido
     df_filtrado_liga = df_jogos[df_jogos['campeonato'] == campeonato_selecionado]
+
+st.divider()
+
+# VALIDAÇÃO CRÍTICA: Se houver jogos na liga escolhida, segue o fluxo. Se não, avisa o usuário.
+if not df_filtrado_liga.empty:
     
-    st.divider()
-    
-    # 🧱 PASSO 2: Escolher o Time pertencente àquele campeonato
+    # 🧱 PASSO 2: Escolher o Time
     st.subheader("⚽ Passo 2: Selecione o Time")
-    
-    # Extrair todos os times únicos que vão jogar nesta liga no dia escolhido
     times_disponiveis = sorted(list(set(df_filtrado_liga['time_casa'].tolist() + df_filtrado_liga['time_fora'].tolist())))
     time_selecionado = st.selectbox("Escolha a equipe para focar a análise pré-jogo:", times_disponiveis)
     
-    # Localizar automaticamente a partida onde este time está envolvido
+    # Localização automática do confronto direto por causa do time escolhido
     linha_jogo = df_filtrado_liga[(df_filtrado_liga['time_casa'] == time_selecionado) | (df_filtrado_liga['time_fora'] == time_selecionado)].iloc[0]
     
     id_jogo = str(linha_jogo['id'])
@@ -51,15 +66,12 @@ if lista_jogos:
     
     st.divider()
     
-    # Display do Card do Confronto Localizado
     st.success(f"🎯 **Confronto Localizado:** {t_casa} x {t_fora} | 🕒 **Horário:** {horario} (Brasília)")
     
-    # Executar a análise real do jogo encontrado
     with st.spinner(f"Processando métricas oficiais de {t_casa} x {t_fora}..."):
         res = calcular_analise_completa(id_jogo, t_casa, t_fora)
         
     st.subheader(f"🛠️ Painel Analítico")
-    
     analisar_tudo = st.checkbox("🔥 EXIBIR TODOS OS MERCADOS DE ANÁLISE", value=True)
     
     col_m1, col_m2, col_m3 = st.columns(3)
@@ -89,4 +101,5 @@ if lista_jogos:
         st.markdown(res['tendencia_cartoes'])
         st.write("---")
 else:
-    st.warning(f"Nenhum jogo futuro agendado para a data selecionada ({data_selecionada.strftime('%d/%m/%Y')}). Modifique o calendário lateral para buscar novas rodadas.")
+    # Mensagem de tratamento limpa exigida por você caso a liga não possua partidas futuras na data
+    st.warning(f"⚠️ Não existem jogos pré-confronto agendados para o campeonato **{campeonato_selecionado}** na data selecionada ({data_selecionada.strftime('%d/%m/%Y')}).")
