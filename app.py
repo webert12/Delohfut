@@ -1,78 +1,100 @@
-import requests
+import streamlit as st
+import pandas as pd
+from datetime import datetime
+from scraper import buscar_jogos_do_dia
+from analises import calcular_analise_completa
 
-HEADERS = {
-    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36",
-    "Referer": "https://www.sofascore.com/",
-    "Origin": "https://www.sofascore.com"
-}
+st.set_page_config(page_title="Dashboard Pro Analytics", layout="wide")
 
-def calcular_analise_completa(id_jogo, time_casa, time_fora):
-    # 1. Buscar Árbitro Real
-    url_evento = f"https://api.sofascore.com/api/v1/event/{id_jogo}"
-    juiz_nome = "Não informado ou não escalado ainda"
-    try:
-        r_ev = requests.get(url_evento, headers=HEADERS, timeout=6)
-        if r_ev.status_code == 200:
-            ev_data = r_ev.json().get('event', {})
-            juiz_nome = ev_data.get('referee', {}).get('name', "Não informado")
-    except:
-        pass
+st.title("📊 Dashboard de Análise Esportiva Avançada")
+st.markdown("Fontes de Coleta Integrada: *SofaScore Real-Time*")
 
-    # 2. Buscar Probabilidades baseadas nos votos reais da plataforma
-    url_votos = f"https://api.sofascore.com/api/v1/event/{id_jogo}/votes"
-    prob_texto = "Sem votação registrada para esta partida"
-    favorito = "Dados insuficientes"
-    try:
-        r_vo = requests.get(url_votos, headers=HEADERS, timeout=6)
-        if r_vo.status_code == 200:
-            votos = r_vo.json().get('votes', {})
-            v_casa = votos.get('home', 0)
-            v_empate = votos.get('draw', 0)
-            v_fora = votos.get('away', 0)
-            total = v_casa + v_empate + v_fora
-            if total > 0:
-                p_casa = round((v_casa / total) * 100)
-                p_emp = round((v_empate / total) * 100)
-                p_fora = round((v_fora / total) * 100)
-                prob_texto = f"🟢 {time_casa}: {p_casa}% | ⚪ Empate: {p_emp}% | 🔴 {time_fora}: {p_fora}%"
-                
-                if p_casa > p_fora and p_casa > p_emp:
-                    favorito = f"{time_casa} (Baseado no voto do público)"
-                elif p_fora > p_casa and p_fora > p_emp:
-                    favorito = f"{time_fora} (Baseado no voto do público)"
-                else:
-                    favorito = "Equilíbrio / Empate Técnico"
-    except:
-        pass
+# --- FILTROS DE SELEÇÃO LATERAL ---
+st.sidebar.header("🔍 Filtros de Busca")
 
-    # 3. Buscar Tendências Reais (Team Streaks) dos últimos jogos
-    url_streaks = f"https://api.sofascore.com/api/v1/event/{id_jogo}/team-streaks"
-    tendencias_gols = []
-    tendencias_cartoes = []
-    try:
-        r_st = requests.get(url_streaks, headers=HEADERS, timeout=6)
-        if r_st.status_code == 200:
-            streaks = r_st.json()
-            for streak in streaks.get('general', []):
-                name = streak.get('name', '')
-                team = time_casa if streak.get('team') == 'home' else time_fora
-                
-                # Filtrar padrões reais de gols
-                if any(x in name.lower() for x in ['goals', 'gols', 'score', 'fewer']):
-                    tendencias_gols.append(f"⚽ **{team}**: {name}")
-                # Filtrar padrões reais de cartões
-                if any(x in name.lower() for x in ['cards', 'cartões', 'yellow']):
-                    tendencias_cartoes.append(f"🟨 **{team}**: {name}")
-    except:
-        pass
+data_selecionada = st.sidebar.date_input("1. Escolha a Data", datetime.today())
+data_formatada = data_selecionada.strftime('%Y-%m-%d')
 
-    txt_gols = "\n".join(tendencias_gols) if tendencias_gols else "Sem sequências de gols marcantes registradas nos últimos 5 jogos."
-    txt_cartoes = "\n".join(tendencias_cartoes) if tendencias_cartoes else "Sem alertas de cartões específicos catalogados para hoje."
+lista_jogos = []
+try:
+    with st.spinner("Buscando partidas reais no servidor..."):
+        lista_jogos = buscar_jogos_do_dia(data_formatada)
+except Exception as e:
+    st.error(str(e))
 
-    return {
-        "juiz_nome": juiz_nome,
-        "probabilidade_vitoria": prob_texto,
-        "time_favorito": favorito,
-        "tendencia_gols": txt_gols,
-        "tendencia_cartoes": txt_cartoes
-    }
+if lista_jogos:
+    df_jogos = pd.DataFrame(lista_jogos)
+    
+    # Filtro Dinâmico de Campeonatos Mundiais Reais
+    todos_campeonatos = sorted(df_jogos['campeonato'].unique())
+    campeonatos_selecionados = st.sidebar.multiselect("2. Selecione os Campeonatos", todos_campeonatos)
+    
+    if campeonatos_selecionados:
+        df_jogos = df_jogos[df_jogos['campeonato'].isin(campeonatos_selecionados)]
+
+    # --- ÁREA PRINCIPAL ---
+    st.subheader(f"⚽ Partidas Encontradas ({len(df_jogos)})")
+    
+    df_exibicao = df_jogos.copy()
+    df_exibicao.rename(columns={'status': 'Hora (Brasília)'}, inplace=True)
+    st.dataframe(
+        df_exibicao[['pais', 'campeonato', 'time_casa', 'time_fora', 'Hora (Brasília)']], 
+        use_container_width=True, hide_index=True
+    )
+    
+    st.divider()
+    
+    # Escolha do Jogo para Analisar
+    df_jogos['partida'] = df_jogos['time_casa'] + " x " + df_jogos['time_fora']
+    jogo_selecionado = st.selectbox("🎯 Selecione a partida que deseja dissecar:", df_jogos['partida'].unique())
+    
+    if jogo_selecionado:
+        linha_jogo = df_jogos[df_jogos['partida'] == jogo_selecionado].iloc[0]
+        
+        id_jogo = int(linha_jogo['id'])
+        t_casa = str(linha_jogo['time_casa'])
+        t_fora = str(linha_jogo['time_fora'])
+        
+        # Puxar dados estritamente reais extraídos do SofaScore
+        res = calcular_analise_completa(id_jogo, t_casa, t_fora)
+        
+        st.subheader(f"🛠️ O que você deseja analisar em {jogo_selecionado}?")
+        
+        # --- SELEÇÕES MÚLTIPLAS DE MERCADOS ---
+        analisar_tudo = st.checkbox("🔥 ANALISAR TUDO DE UMA SÓ VEZ", value=False)
+        
+        col_m1, col_m2, col_m3 = st.columns(3)
+        with col_m1:
+            quero_cartoes = st.checkbox("🟨 Cartões e Arbitragem", value=False if not analisar_tudo else True)
+        with col_m2:
+            quero_gols = st.checkbox("⚽ Tendências de Gols", value=False if not analisar_tudo else True)
+        with col_m3:
+            quero_probabilidades = st.checkbox("📈 Probabilidades Reais", value=False if not analisar_tudo else True)
+            
+        st.divider()
+        
+        # --- EXIBIÇÃO CONFORME ESCOLHA DOS BOTÕES ---
+        
+        if analisar_tudo or quero_probabilidades:
+            st.markdown("### 📈 Probabilidades e Previsões do Confronto")
+            st.info(f"**Votação Global do Público:** {res['probabilidade_vitoria']}")
+            st.metric("⭐ Tendência de Favoritismo", res['time_favorito'])
+            st.write("---")
+
+        if analisar_tudo or quero_gols:
+            st.markdown("### ⚽ Análise Real de Gols (Últimos Confrontos)")
+            st.markdown(res['tendencia_gols'])
+            st.write("---")
+            
+        if analisar_tudo or quero_cartoes:
+            st.markdown("### 🟨 Relatório Disciplinar de Cartões")
+            st.metric("👨‍⚖️ Árbitro Escalado", res['juiz_nome'])
+            st.write("**Histórico de Padrões Recentes:**")
+            st.markdown(res['tendencia_cartoes'])
+            st.write("---")
+            
+        if not (analisar_tudo or quero_cartoes or quero_gols or quero_probabilidades):
+            st.warning("Marque uma ou mais caixas acima para exibir as estatísticas correspondentes.")
+else:
+    if not lista_jogos:
+        st.warning("Nenhum jogo oficial encontrado ou o servidor do SofaScore recusou a conexão automatizada.")
