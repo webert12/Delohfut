@@ -7,18 +7,18 @@ from analises import calcular_analise_completa
 st.set_page_config(page_title="Dashboard Pro Analytics", layout="wide")
 
 st.title("📊 Painel de Análise Estatística Pré-Jogo")
-st.markdown("Filtro Ativo: **Apenas confrontos futuros** | Dados 100% Reais e Oficiais")
+st.markdown("Filtro Ativo: **Apenas confrontos futuros** | Coleta de Dados Expandida Mundial")
 
 # --- FILTROS DE SELEÇÃO LATERAL ---
 st.sidebar.header("🔍 Configurações do Filtro")
 
-# 1. Alterar a Data recarrega exatamente os jogos reais daquele dia específico
+# 1. Calendário Inteligente
 data_selecionada = st.sidebar.date_input("1. Escolha a Data da Rodada", datetime.today())
 data_formatada = data_selecionada.strftime('%Y-%m-%d')
 
 lista_jogos = []
 try:
-    with st.spinner("Varrendo agenda de jogos futuros..."):
+    with st.spinner("Varrendo banco de dados mundial..."):
         lista_jogos = buscar_jogos_do_dia(data_formatada)
 except Exception as e:
     st.sidebar.error(f"⚠️ {str(e)}")
@@ -26,7 +26,7 @@ except Exception as e:
 if lista_jogos:
     df_jogos = pd.DataFrame(lista_jogos)
     
-    # 2. Escolha do Campeonato (Atualiza dinamicamente com as ligas reais do dia)
+    # 2. Dropdown de Campeonatos (Lista automaticamente todas as ligas reais traduzidas que jogam no dia)
     todos_campeonatos = sorted(df_jogos['campeonato'].unique())
     campeonato_selecionado = st.sidebar.selectbox("2. Escolha o Campeonato", ["Todos os Campeonatos"] + todos_campeonatos)
     
@@ -46,7 +46,7 @@ if lista_jogos:
     
     st.divider()
     
-    # 3. Escolha da Partida Filtrada para Análise Dissecada
+    # 3. Seletor Dinâmico de Confronto
     df_jogos['partida'] = df_jogos['time_casa'] + " x " + df_jogos['time_fora']
     jogo_selecionado = st.selectbox("🎯 Escolha o confronto que deseja analisar:", df_jogos['partida'].unique())
     
@@ -91,4 +91,4 @@ if lista_jogos:
             st.markdown(res['tendencia_cartoes'])
             st.write("---")
 else:
-    st.warning(f"Nenhum jogo futuro/pré-confronto agendado para {data_selecionada.strftime('%d/%m/%Y')}. Caso houvessem partidas hoje que já terminaram ou estão em andamento, elas foram ocultadas pelo filtro.")
+    st.warning(f"Nenhum jogo futuro agendado para {data_selecionada.strftime('%d/%m/%Y')}. Partidas ao vivo ou encerradas são omitidas automaticamente.")
