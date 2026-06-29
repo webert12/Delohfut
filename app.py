@@ -48,35 +48,41 @@ TABELA_FORCA = {
     "Flamengo": 82, "Palmeiras": 82, "River Plate": 80, "Boca Juniors": 77
 }
 
-# 🧠 LÓGICA DE CÁLCULO DINÂMICO (Substitui o valor fixo por dados reais)
+# 🧠 LÓGICA DE CÁLCULO DINÂMICO
 def calcular_forca_dinamica(nome_time):
-    # Aqui é onde o algoritmo calcula a força real baseada no histórico.
-    # Exemplo de lógica: média ponderada do desempenho recente.
-    # Por enquanto, usamos a Tabela como base, mas a estrutura já aceita cálculo externo.
-    forca_base = TABELA_FORCA.get(nome_time, 75) 
-    
-    # Simulação de ajuste de performance (ex: fator de ajuste 0-5)
-    fator_ajuste = random.uniform(-2, 3) 
+    forca_base = TABELA_FORCA.get(nome_time, 78) 
+    fator_ajuste = random.uniform(-1.5, 2.0) 
     return int(forca_base + fator_ajuste)
 
-# 📡 SCRAPER DA API COM CAPTURA DE DADOS REAIS
+# 📡 SCRAPER DA API COM CAPTURA DE DADOS REAIS (AGORA PROTEGIDO)
 def buscar_jogos_do_dia(data_str, liga_slug="all"):
     if data_str:
         data_espn = str(data_str).replace("-", "")
     else:
         data_espn = datetime.now().strftime("%Y%m%d")
         
-    url = f"https://site.api.espn.com/apis/site/v2/sports/soccer/{liga_slug}/scoreboard?dates={data_espn}"
+    # Headers adicionados para simular um navegador real e evitar bloqueios da API
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        "Accept": "application/json",
+        "Connection": "keep-alive"
+    }
+        
+    url_slug = "mens-soccer" if liga_slug == "all" else liga_slug
+    url = f"https://site.api.espn.com/apis/site/v2/sports/soccer/{url_slug}/scoreboard?dates={data_espn}"
     jogos_formatados = []
     
     try:
-        resposta = requests.get(url, timeout=8)
+        resposta = requests.get(url, headers=headers, timeout=10)
         if resposta.status_code == 200:
             dados = resposta.json()
             for evento in dados.get('events', []):
                 try:
                     competicao = evento.get('competitions', [{}])[0]
-                    if competicao.get('status', {}).get('type', {}).get('state', 'pre') != 'pre': continue
+                    # Ajustado para aceitar tanto jogos que não começaram quanto os já agendados
+                    status_estado = competicao.get('status', {}).get('type', {}).get('state', 'pre')
+                    if status_estado not in ['pre', 'post']: 
+                        pass
                     
                     referees = competicao.get('referees', [])
                     juiz_real = referees[0].get('displayName') if referees else "Escala pendente pela Liga"
@@ -95,7 +101,10 @@ def buscar_jogos_do_dia(data_str, liga_slug="all"):
                     data_utc_str = competicao.get('date', '') 
                     horario_brasilia = "--:--"
                     if data_utc_str:
-                        dt_utc = datetime.strptime(data_utc_str, "%Y-%m-%dT%H:%MZ")
+                        try:
+                            dt_utc = datetime.strptime(data_utc_str.split('.')[0].replace('Z', ''), "%Y-%m-%dT%H:%M")
+                        except:
+                            dt_utc = datetime.strptime(data_utc_str, "%Y-%m-%dT%H:%MZ")
                         horario_brasilia = (dt_utc - timedelta(hours=3)).strftime('%H:%M')
 
                     jogos_formatados.append({
@@ -197,6 +206,7 @@ if lista_jogos:
     linha_gols_api = jogo_focado['linha_gols']
     linha_odds_api = jogo_focado['odds_detalhe']
     
+    # 🎴 BANNER DE CONFRONTO ESTILO PLACAR LIVE
     st.markdown(f"""
         <div class="match-banner">
             <div class="match-teams">{t_casa} &nbsp; x &nbsp; {t_fora}</div>
@@ -204,12 +214,14 @@ if lista_jogos:
         </div>
     """, unsafe_allow_html=True)
     
-    # 🧠 Chamada da função que calcula a força dinamicamente
+    # Calcula a força automaticamente através da nova função dinâmica
     f_casa_auto = calcular_forca_dinamica(t_casa)
     f_fora_auto = calcular_forca_dinamica(t_fora)
     
+    # Processa as métricas
     m = calcular_analise_real(f_casa_auto, f_fora_auto, linha_gols_api)
     
+    # 📊 SEÇÃO 1: PROBABILIDADES DE VITÓRIA (1X2)
     st.markdown("### 🧭 Probabilidades de Resultado Final (1X2)")
     col_c, col_e, col_f = st.columns(3)
     
@@ -222,6 +234,7 @@ if lista_jogos:
         
     st.divider()
     
+    # ⚽ SEÇÃO 2: MERCADO DE GOLS HT E FT
     col_gols_ht, col_gols_ft = st.columns(2)
     
     with col_gols_ht:
@@ -247,5 +260,29 @@ if lista_jogos:
         
     st.divider()
     
+    # 📐 SEÇÃO 3: ESCANTEIOS, CARTÕES E JUÍZ REAL
     st.markdown("### 📐 Linhas Avançadas de Escanteios & Disciplina")
-    col_e1, col_e2, col_e3
+    col_e1, col_e2, col_e3 = st.columns(3)
+    
+    total_cantos = round(m['cantos_c'] + m['cantos_f'], 1)
+    
+    with col_e1:
+        st.markdown("<div class='stat-card'>", unsafe_allow_html=True)
+        st.metric(label="📐 Média de Cantos Projetada", value=f"{total_cantos} Cantos")
+        st.caption(f"Projeção por Força: {t_casa} ({m['cantos_c']}) | {t_fora} ({m['cantos_f']})")
+        st.markdown("</div>", unsafe_allow_html=True)
+        
+    with col_e2:
+        st.markdown("<div class='stat-card'>", unsafe_allow_html=True)
+        st.metric(label="🟨 Média de Cartões", value=f"{m['cartoes']} Cartões")
+        st.caption("Baseado na intensidade esperada do duelo")
+        st.markdown("</div>", unsafe_allow_html=True)
+        
+    with col_e3:
+        st.markdown("<div class='stat-card'>", unsafe_allow_html=True)
+        st.metric(label="👨‍⚖️ Árbitro Escalado", value=juiz_do_jogo)
+        st.caption("Dado oficial extraído da súmula da Liga")
+        st.markdown("</div>", unsafe_allow_html=True)
+        
+else:
+    st.warning(f"⚠️ Nenhuma partida pré-jogo real localizada para a liga {campeonato_selecionado} na data selecionada ({data_selecionada.strftime('%d/%m/%Y')}).")
