@@ -102,17 +102,14 @@ def buscar_jogos_do_dia(data_str, liga_slug="all"):
     except: pass
     return jogos_formatados
 
-# 🧠 MOTOR ANALÍTICO CONFIGURADO POR DISPARIDADE TÉCNICA + INFLUÊNCIA DO MERCADO
-def calcular_analise_real(time_c, time_f, linha_gols_api):
-    f_casa = TABELA_FORCA.get(time_c, 75)
-    f_fora = TABELA_FORCA.get(time_f, 75)
-    
+# 🧠 MOTOR ANALÍTICO (Agora recebe a força exata ajustada pelos sliders)
+def calcular_analise_real(f_casa, f_fora, linha_gols_api):
     peso_casa = f_casa + 3
     peso_fora = f_fora
     
     diff = peso_casa - peso_fora
     
-    # 1X2 Projeção (Não sofre influência da linha de gols, apenas da força)
+    # 1X2 Projeção
     prob_casa = int(max(15, min(85, 45 + (diff * 2.5))))
     prob_fora = int(max(10, min(80, 35 - (diff * 2.5))))
     prob_empate = max(5, 100 - prob_casa - prob_fora)
@@ -123,25 +120,21 @@ def calcular_analise_real(time_c, time_f, linha_gols_api):
     ft_over_25 = int(max(30, min(85, nivel_gols * 0.70)))
     btts = int(max(35, min(78, (100 - prob_empate) * 0.8)))
     
-    # 🚨 NOVA LÓGICA: O ALGORITMO ESCUTA O MERCADO DE APOSTAS REAIS
+    # Influência do mercado (Odds)
     if linha_gols_api is not None:
         try:
             linha_mercado = float(linha_gols_api)
             if linha_mercado >= 3.0:
-                # Mercado espera muitos gols: Boost nas métricas de gols
                 ft_over_25 = min(96, ft_over_25 + 18)
                 ht_over = min(94, ht_over + 12)
                 btts = min(89, btts + 15)
             elif linha_mercado <= 2.0:
-                # Mercado espera jogo truncado: Queda nas métricas de gols
                 ft_over_25 = max(15, ft_over_25 - 25)
                 ht_over = max(20, ht_over - 18)
                 btts = max(25, btts - 20)
             elif linha_mercado == 2.5:
-                # Jogo padrão: Ajuda a puxar o dado genérico para a realidade do mercado
                 ft_over_25 = int((ft_over_25 + 50) / 2)
-        except ValueError:
-            pass # Se a linha vier com texto não numérico, ignora e usa a base
+        except ValueError: pass
             
     # Projeção de Escanteios e Cartões
     cantos_c = round(max(3.5, min(8.5, (f_casa / 12) + 1)), 1)
@@ -207,8 +200,23 @@ if lista_jogos:
         </div>
     """, unsafe_allow_html=True)
     
-    # Processa as métricas
-    m = calcular_analise_real(t_casa, t_fora, linha_gols_api)
+    # 🎚️ SIMULADOR DE FORÇA (NOVO)
+    st.markdown("### 🎚️ Calibrador Manual de Força Técnica")
+    st.caption("Ajuste a pontuação dos times (50 a 100) para simular diferentes cenários de domínio na partida.")
+    
+    base_forca_casa = TABELA_FORCA.get(t_casa, 75)
+    base_forca_fora = TABELA_FORCA.get(t_fora, 75)
+    
+    col_slider_c, col_slider_f = st.columns(2)
+    with col_slider_c:
+        f_casa_ajustada = st.slider(f"Força: {t_casa} (Casa)", min_value=50, max_value=100, value=base_forca_casa, step=1)
+    with col_slider_f:
+        f_fora_ajustada = st.slider(f"Força: {t_fora} (Fora)", min_value=50, max_value=100, value=base_forca_fora, step=1)
+        
+    st.divider()
+    
+    # Processa as métricas com os valores dos sliders
+    m = calcular_analise_real(f_casa_ajustada, f_fora_ajustada, linha_gols_api)
     
     # 📊 SEÇÃO 1: PROBABILIDADES DE VITÓRIA (1X2)
     st.markdown("### 🧭 Probabilidades de Resultado Final (1X2)")
