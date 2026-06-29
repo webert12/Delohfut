@@ -102,7 +102,7 @@ def buscar_jogos_do_dia(data_str, liga_slug="all"):
     except: pass
     return jogos_formatados
 
-# 🧠 MOTOR ANALÍTICO (Agora recebe a força exata ajustada pelos sliders)
+# 🧠 MOTOR ANALÍTICO (Agora recebe a força exata ajustada automaticamente)
 def calcular_analise_real(f_casa, f_fora, linha_gols_api):
     peso_casa = f_casa + 3
     peso_fora = f_fora
@@ -200,23 +200,12 @@ if lista_jogos:
         </div>
     """, unsafe_allow_html=True)
     
-    # 🎚️ SIMULADOR DE FORÇA (NOVO)
-    st.markdown("### 🎚️ Calibrador Manual de Força Técnica")
-    st.caption("Ajuste a pontuação dos times (50 a 100) para simular diferentes cenários de domínio na partida.")
+    # Calcula a força automaticamente a partir da tabela sem sliders
+    f_casa_auto = TABELA_FORCA.get(t_casa, 75)
+    f_fora_auto = TABELA_FORCA.get(t_fora, 75)
     
-    base_forca_casa = TABELA_FORCA.get(t_casa, 75)
-    base_forca_fora = TABELA_FORCA.get(t_fora, 75)
-    
-    col_slider_c, col_slider_f = st.columns(2)
-    with col_slider_c:
-        f_casa_ajustada = st.slider(f"Força: {t_casa} (Casa)", min_value=50, max_value=100, value=base_forca_casa, step=1)
-    with col_slider_f:
-        f_fora_ajustada = st.slider(f"Força: {t_fora} (Fora)", min_value=50, max_value=100, value=base_forca_fora, step=1)
-        
-    st.divider()
-    
-    # Processa as métricas com os valores dos sliders
-    m = calcular_analise_real(f_casa_ajustada, f_fora_ajustada, linha_gols_api)
+    # Processa as métricas
+    m = calcular_analise_real(f_casa_auto, f_fora_auto, linha_gols_api)
     
     # 📊 SEÇÃO 1: PROBABILIDADES DE VITÓRIA (1X2)
     st.markdown("### 🧭 Probabilidades de Resultado Final (1X2)")
